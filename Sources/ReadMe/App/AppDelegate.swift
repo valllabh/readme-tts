@@ -10,7 +10,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var services: ServicesProvider!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Log.info("launch: \(Bundle.main.bundlePath), trusted=\(SelectionReader.isTrusted)")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unbundled"
+        Log.info("launch: v\(version) build \(build), \(Bundle.main.bundlePath), macOS \(ProcessInfo.processInfo.operatingSystemVersionString), trusted=\(SelectionReader.isTrusted)")
         // First launch after an install with a changed signature: clear the
         // stale permission rows so the fresh grant sticks, then prompt.
         SelectionReader.resetStalePermission()

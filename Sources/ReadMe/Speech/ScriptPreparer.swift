@@ -42,8 +42,8 @@ actor ScriptPreparer {
                 instructions: Self.instructions,
                 generateParameters: GenerateParameters(maxTokens: 700, temperature: 0.0)
             )
-            let out = try await session.respond(to: text)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let raw = try await session.respond(to: text)
+            let out = Self.sanitize(raw)
             // Guard against the model going off script: empty output or
             // runaway length falls back to the input.
             guard !out.isEmpty, out.count < max(text.count * 3, 200) else { return text }
@@ -56,6 +56,21 @@ actor ScriptPreparer {
             Log.error("polish failed, using plain text: \(error)")
             return text
         }
+    }
+
+    // Small models leak chat template tokens into the text (seen in the
+    // logs: "<end_of_turn><end_of_turn> numerically."). Spoken aloud they are
+    // garbage, so strip every special token shape before use.
+    static func sanitize(_ text: String) -> String {
+        var s = text
+        s = s.replacingOccurrences(
+            of: #"<\|?[a-zA-Z0-9_]+\|?>"#,
+            with: " ",
+            options: .regularExpression
+        )
+        s = s.replacingOccurrences(of: "```", with: " ")
+        s = s.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+        return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func loadedContainer() async throws -> ModelContainer {

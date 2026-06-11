@@ -36,10 +36,15 @@ release: metallib-check
 run: build
 	$(DEBUG_BIN)
 
+# Build stamp recorded into CFBundleVersion so logs identify the binary.
+GIT_SHA := $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
+BUILD_STAMP := $(shell date +%Y%m%d.%H%M)
+
 bundle: release
 	rm -rf $(BUNDLE)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
 	cp Bundle/Info.plist $(BUNDLE)/Contents/
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(GIT_SHA).$(BUILD_STAMP)" $(BUNDLE)/Contents/Info.plist
 	cp Assets/ReadMe.icns $(BUNDLE)/Contents/Resources/
 	cp $(RELEASE_BIN) $(BUNDLE)/Contents/MacOS/
 	cp "$(METALLIB)" $(BUNDLE)/Contents/MacOS/mlx.metallib

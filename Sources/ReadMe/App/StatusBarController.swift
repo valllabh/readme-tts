@@ -82,11 +82,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func showMenu() {
-        item.menu = menu
-        item.button?.performClick(nil)
-        // item.menu is cleared in menuDidClose. Clearing it here, right after
-        // performClick returns, can race ahead of the selected item's action
-        // dispatch and silently swallow the first click.
+        guard let button = item.button else { return }
+        // popUp delivers item actions reliably; the performClick plus
+        // temporary item.menu hack lost actions (visible in the logs as
+        // right clicks with no following action).
+        menu.popUp(
+            positioning: nil,
+            at: NSPoint(x: 0, y: button.bounds.height + 4),
+            in: button
+        )
     }
 
     // MARK: - Menu
@@ -173,11 +177,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         aiScriptItem.state = Preferences.aiScriptEnabled ? .on : .off
     }
 
-    func menuDidClose(_ menu: NSMenu) {
-        // Detach so plain left clicks keep hitting the button action instead
-        // of opening the menu.
-        item.menu = nil
-    }
 
     @objc private func openPreferences() {
         Log.info("menu: open preferences")
@@ -185,10 +184,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openLogs() {
+        Log.info("menu: open logs")
         NSWorkspace.shared.activateFileViewerSelecting([Log.shared.fileURL])
     }
 
     @objc private func toggleAIScript() {
+        Log.info("menu: toggle AI script")
         Preferences.aiScriptEnabled.toggle()
         aiScriptItem.state = Preferences.aiScriptEnabled ? .on : .off
         StatusFeedback.shared.show(
@@ -205,22 +206,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: - Actions
 
     @objc private func readSelection() {
+        Log.info("menu: read selection")
         speech.readSelection()
     }
 
     @objc private func togglePause() {
+        Log.info("menu: pause resume")
         speech.togglePause()
     }
 
     @objc private func stopReading() {
+        Log.info("menu: stop")
         speech.stop()
     }
 
     @objc private func seekBack() {
+        Log.info("menu: back 5")
         speech.seekBack()
     }
 
     @objc private func seekForward() {
+        Log.info("menu: forward 5")
         speech.seekForward()
     }
 
