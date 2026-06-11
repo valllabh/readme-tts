@@ -47,10 +47,9 @@ actor ScriptPreparer {
             // Guard against the model going off script: empty output or
             // runaway length falls back to the input.
             guard !out.isEmpty, out.count < max(text.count * 3, 200) else { return text }
-            if out != text {
-                Log.info("polish in:  \(text)")
-                Log.info("polish out: \(out)")
-            }
+            // Log sizes only. The text itself is whatever the user selected
+            // and must never be persisted to disk.
+            Log.info("polish: \(text.count) -> \(out.count) chars, changed=\(out != text)")
             return out
         } catch {
             Log.error("polish failed, using plain text: \(error)")

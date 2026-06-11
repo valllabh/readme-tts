@@ -40,7 +40,12 @@ final class Log {
                     handle.write(data)
                     try? handle.close()
                 } else {
-                    try? data.write(to: self.fileURL)
+                    // Owner only: logs are diagnostic but still private.
+                    FileManager.default.createFile(
+                        atPath: self.fileURL.path,
+                        contents: data,
+                        attributes: [.posixPermissions: 0o600]
+                    )
                 }
             }
         }
