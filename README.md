@@ -11,7 +11,11 @@ A macOS menu bar app that reads any selected text aloud using expressive AI text
   - Programmatic normalizer: markdown, tables, URLs, emails, numbers, currency, times, ordinals, units, symbols, abbreviations all expand into spoken words
   - Optional AI Script Polish: a small local LLM (Gemma 3 1B on MLX) rewrites each chunk for natural reading, pipelined ahead of speech so it adds no wait
 - Real pauses at structure: paragraph breaks, line breaks, list items, and table rows pause like a human reader (silence is injected, since the model ignores newlines)
-- Transport controls: pause, resume, stop, seek 5 seconds back and forward
+- Transport controls: pause, resume, stop, seek 5 seconds back and forward, with elapsed and generated time shown live
+- Playback speed from 0.8x to 2x, pitch preserved, changeable mid read
+- Read Clipboard: speaks whatever was copied, no permissions needed
+- Export Last Read to m4a or wav, generated locally at no cost
+- Browser selections capture the HTML structure: headings pause like headings, tables read row by row, images are skipped
 - Global hotkeys, all recordable in Preferences: Cmd Option R read selection, Cmd Option P pause and resume, Option Escape read or stop (the macOS Spoken Content shortcut, so the accessibility trigger drives ReadMe)
 - Preferences window (Cmd comma from the menu): voice model and voice, AI Script Polish, shortcut recording, launch at login
 - Services menu entry "Read with ReadMe" on right click (app bundle install)
