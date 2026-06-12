@@ -148,6 +148,23 @@ public enum TextNormalizer {
         // names. Semicolons and colons become commas, parentheticals and
         // bracketed asides get comma pauses around their content, compound
         // hyphens read as spaced words.
+        // Caption and nonverbal markers (subtitle exports, transcripts) are
+        // stage directions, not speech. Audio events drop entirely; explicit
+        // pause markers become a comma pause. Runs before brackets get their
+        // generic comma pause treatment.
+        s = replace(
+            s,
+            #"[ \t]*[(\[](pause|pauses|silence|break)[)\]]"#,
+            ",",
+            caseInsensitive: true
+        )
+        s = replace(
+            s,
+            #"[ \t]*[(\[](music|applause|laughter|laughs|laughing|sighs|coughs|coughing|cheering|chuckles|inaudible|crosstalk|beep|noise|static|gasps|whispers)[)\]]"#,
+            "",
+            caseInsensitive: true
+        )
+
         s = replace(s, #";"#, ",")
         s = replace(s, #"(?m):([ \t]|$)"#, ",$1")
         s = replace(s, #"[ \t]*\(([^)\n]{1,300})\)"#, ", $1,")

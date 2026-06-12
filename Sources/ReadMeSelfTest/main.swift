@@ -179,6 +179,12 @@ expectEqual(
     "normalizer: ranges ratios brackets"
 )
 
+expectEqual(
+    TextNormalizer.normalize("He said hello [Music] and left (laughs) quickly."),
+    "He said hello and left quickly.",
+    "normalizer: caption markers dropped"
+)
+
 // Separator lines and decorative marks produce no chunks.
 do {
     let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"
