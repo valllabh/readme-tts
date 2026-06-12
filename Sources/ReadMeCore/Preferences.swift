@@ -93,10 +93,11 @@ public enum Preferences {
         }
     }
 
-    // LLM polish pass over each chunk before speaking. Defaults to on.
+    // LLM polish pass over each chunk before speaking. Off by default; the
+    // toggle lives in the preferences window.
     public static var aiScriptEnabled: Bool {
         get {
-            UserDefaults.standard.object(forKey: aiScriptKey) as? Bool ?? true
+            UserDefaults.standard.object(forKey: aiScriptKey) as? Bool ?? false
         }
         set {
             UserDefaults.standard.set(newValue, forKey: aiScriptKey)

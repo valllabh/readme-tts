@@ -8,7 +8,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private var readItem: NSMenuItem!
     private var stopItem: NSMenuItem!
-    private var aiScriptItem: NSMenuItem!
     private var debugItem: NSMenuItem!
 
     private var backButton: NSButton!
@@ -120,14 +119,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        aiScriptItem = menu.addItem(
-            withTitle: "AI Script Polish",
-            action: #selector(toggleAIScript),
-            keyEquivalent: ""
-        )
-        aiScriptItem.target = self
-        aiScriptItem.state = Preferences.aiScriptEnabled ? .on : .off
-
         let prefsItem = menu.addItem(
             withTitle: "Preferences…",
             action: #selector(openPreferences),
@@ -162,12 +153,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         return menu
     }
 
-    // Keep menu state in sync with changes made in the preferences window.
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        aiScriptItem.state = Preferences.aiScriptEnabled ? .on : .off
-    }
-
-
     @objc private func openPreferences() {
         Log.info("menu: open preferences")
         PreferencesWindowController.shared.show()
@@ -187,21 +172,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             DebugTrace.append("polish system prompt", ScriptPreparer.instructions)
         } else {
             DebugWindowController.shared.window?.orderOut(nil)
-        }
-    }
-
-    @objc private func toggleAIScript() {
-        Log.info("menu: toggle AI script")
-        Preferences.aiScriptEnabled.toggle()
-        aiScriptItem.state = Preferences.aiScriptEnabled ? .on : .off
-        StatusFeedback.shared.show(
-            Preferences.aiScriptEnabled ? "AI Script Polish on" : "AI Script Polish off",
-            near: item.button
-        )
-        if Preferences.aiScriptEnabled {
-            Task {
-                await ScriptPreparer.shared.warmUp()
-            }
         }
     }
 
