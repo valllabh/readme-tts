@@ -232,6 +232,22 @@ do {
         proseChunks.contains { $0.text.count > SentenceChunker.denseChunkMax },
         "chunker: normal prose keeps full size chunks"
     )
+
+    // The exact live escape: a CVE table mid article, surrounded by enough
+    // prose that block level density stayed under threshold while the table
+    // chunks themselves were pure number soup. Density is per piece now.
+    let article = "Across the Windows network stack and adjacent services, this Patch Tuesday includes sixteen CVEs our engineering teams found using the new scanning harness, listed in the table below with severity and class. "
+        + Array(repeating: row, count: 6).joined(separator: " ")
+        + " Let us take a closer look at two of the findings and what made them hard for a single model to see."
+    let mixed = SentenceChunker.chunks(for: TextNormalizer.normalize(article))
+    let longDense = mixed.filter { chunk in
+        chunk.text.count > SentenceChunker.denseChunkMax + 10
+            && chunk.text.lowercased().contains("four zero four")
+    }
+    expect(
+        longDense.isEmpty,
+        "chunker: table inside prose still gets short chunks (\(longDense.count) escaped)"
+    )
 }
 
 // Separator lines and decorative marks produce no chunks.

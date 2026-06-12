@@ -134,8 +134,23 @@ public enum SentenceChunker {
         return previous.count > 40
     }
 
+    // Density is judged per assembled piece, not per block: a table inside
+    // a prose block dilutes a block level ratio below the threshold while
+    // its own chunks are still pure number soup (seen live with a CVE table
+    // mid article). Dense pieces get re-split at the short cap.
     private static func boundedPieces(for block: String) -> [String] {
-        let max = isDense(block) ? denseChunkMax : chunkMax
+        var result: [String] = []
+        for piece in assemble(block, max: chunkMax) {
+            if isDense(piece) {
+                result.append(contentsOf: assemble(piece, max: denseChunkMax))
+            } else {
+                result.append(piece)
+            }
+        }
+        return result
+    }
+
+    private static func assemble(_ block: String, max: Int) -> [String] {
         var result: [String] = []
         var current = ""
         for sentence in splitSentences(block) {

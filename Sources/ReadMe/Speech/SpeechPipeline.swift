@@ -79,7 +79,7 @@ enum SpeechPipeline {
                 // symbol heavy input). Truncating the chunk cuts the damage
                 // and the next chunk re-anchors generation from scratch.
                 let words = spokenText.split { $0 == " " }.count
-                let allowedSeconds = 2.5 + Double(words) * 0.55
+                let allowedSeconds = 2.0 + Double(words) * 0.5
                 var emittedSamples = 0
                 for try await samples in stream {
                     try Task.checkCancellation()
