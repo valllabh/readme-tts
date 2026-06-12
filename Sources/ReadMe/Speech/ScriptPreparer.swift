@@ -1,3 +1,5 @@
+import ReadMeCore
+import ReadMeCore
 import Foundation
 import HuggingFace
 import MLXHuggingFace
@@ -46,7 +48,7 @@ actor ScriptPreparer {
         )
         let start = Date()
         let raw = (try? await session.respond(to: text)) ?? "GENERATION FAILED"
-        return (Self.sanitize(raw), Date().timeIntervalSince(start))
+        return (PolishValidator.sanitize(raw), Date().timeIntervalSince(start))
     }
 
     private var container: ModelContainer?
@@ -92,33 +94,16 @@ actor ScriptPreparer {
             )
             DebugTrace.append("polish in", text)
             let raw = try await session.respond(to: text)
-            let out = Self.sanitize(raw)
-            // Guards against the model going off script: empty output,
-            // runaway length, or output that abandoned the input words
-            // (refusals, translations, hallucinated rambling).
-            guard !out.isEmpty, out.count <= Int(Double(text.count) * 1.4) + 30 else {
-                DebugTrace.append("polish rejected (length)", out)
-                Log.info("polish rejected: length \(text.count) -> \(out.count)")
-                return text
-            }
-            guard Self.sharesEnoughWords(input: text, output: out) else {
-                DebugTrace.append("polish rejected (drifted from input)", out)
-                Log.info("polish rejected: output drifted from input")
-                return text
-            }
-            guard !Self.hasLoopedRepetition(output: out, input: text) else {
-                DebugTrace.append("polish rejected (repetition loop)", out)
-                Log.info("polish rejected: repetition loop")
-                return text
-            }
-            guard !Self.fabricatesContent(input: text, output: out) else {
-                DebugTrace.append("polish rejected (fabricated content)", out)
-                Log.info("polish rejected: fabricated content")
-                return text
-            }
-            guard !Self.introducesForeignScript(input: text, output: out) else {
-                DebugTrace.append("polish rejected (foreign script)", out)
-                Log.info("polish rejected: foreign script")
+            // Guards against the model going off script, each one earned by
+            // a live failure: refusals, loops, fabricated URLs, foreign
+            // scripts, runaway length.
+            let out: String
+            switch PolishValidator.validate(input: text, rawOutput: raw) {
+            case .ok(let validated):
+                out = validated
+            case .rejected(let reason):
+                DebugTrace.append("polish rejected (\(reason))", PolishValidator.sanitize(raw))
+                Log.info("polish rejected: \(reason)")
                 return text
             }
             DebugTrace.append("polish out", out)
@@ -130,101 +115,6 @@ actor ScriptPreparer {
             Log.error("polish failed, using plain text: \(error)")
             return text
         }
-    }
-
-    // The rewrite must stay anchored to the input: most input words should
-    // survive into the output. Refusals ("Please tell me what to read"),
-    // language switches, and reversed gibberish all fail this cheaply.
-    static func sharesEnoughWords(input: String, output: String) -> Bool {
-        let inputWords = Set(words(of: input))
-        guard inputWords.count >= 3 else { return true }
-        let outputWords = Set(words(of: output))
-        let common = inputWords.intersection(outputWords).count
-        return Double(common) / Double(inputWords.count) >= 0.5
-    }
-
-    private static func words(of text: String) -> [String] {
-        text.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count >= 2 }
-    }
-
-    // Words a rewrite may legitimately introduce: spoken forms of numbers,
-    // symbols, and units. Anything else novel means the model made it up
-    // (seen live: a fabricated paste.org URL appended to a status line).
-    private static let spokenFormWords: Set<String> = [
-        "zero", "one", "two", "three", "four", "five", "six", "seven",
-        "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
-        "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
-        "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
-        "hundred", "thousand", "million", "billion", "first", "second",
-        "third", "fourth", "fifth", "point", "dot", "slash", "dash", "at",
-        "percent", "degrees", "plus", "minus", "equals", "and", "or", "to",
-        "number", "hash", "colon", "comma", "star", "underscore", "letter",
-        "capital", "seconds", "minutes", "minute", "hours", "hour", "days",
-        "day", "dollars", "dollar", "cents", "cent", "euros", "pounds",
-        "version", "the", "is", "for", "of",
-    ]
-
-    static func fabricatesContent(input: String, output: String) -> Bool {
-        let inputWords = Set(words(of: input))
-        let novel = Set(words(of: output))
-            .subtracting(inputWords)
-            .subtracting(spokenFormWords)
-        return novel.count > max(1, inputWords.count / 5)
-    }
-
-    // Output in a script the input never used (Cyrillic, CJK, Arabic,
-    // Hangul) is hallucination, not a rewrite.
-    static func introducesForeignScript(input: String, output: String) -> Bool {
-        func hasForeign(_ s: String) -> Bool {
-            s.unicodeScalars.contains { scalar in
-                let v = scalar.value
-                return (0x0400 ... 0x04FF).contains(v)   // Cyrillic
-                    || (0x0600 ... 0x06FF).contains(v)   // Arabic
-                    || (0x3040 ... 0x30FF).contains(v)   // Kana
-                    || (0x4E00 ... 0x9FFF).contains(v)   // CJK
-                    || (0xAC00 ... 0xD7AF).contains(v)   // Hangul
-            }
-        }
-        return hasForeign(output) && !hasForeign(input)
-    }
-
-    // Small models loop: seen live as the input sentence duplicated with a
-    // garbage joint ("... voice quality. ieux TTS model, which would ...").
-    // A four word sequence appearing twice in the output but not in the
-    // input means the model repeated itself.
-    static func hasLoopedRepetition(output: String, input: String) -> Bool {
-        func repeatedFourgrams(_ text: String) -> Set<String> {
-            let ws = words(of: text)
-            guard ws.count >= 8 else { return [] }
-            var seen = Set<String>()
-            var repeated = Set<String>()
-            for i in 0 ... (ws.count - 4) {
-                let gram = ws[i ..< i + 4].joined(separator: " ")
-                if !seen.insert(gram).inserted {
-                    repeated.insert(gram)
-                }
-            }
-            return repeated
-        }
-        let inputRepeats = repeatedFourgrams(input)
-        return !repeatedFourgrams(output).subtracting(inputRepeats).isEmpty
-    }
-
-    // Small models leak chat template tokens into the text (seen in the
-    // logs: "<end_of_turn><end_of_turn> numerically."). Spoken aloud they are
-    // garbage, so strip every special token shape before use.
-    static func sanitize(_ text: String) -> String {
-        var s = text
-        s = s.replacingOccurrences(
-            of: #"<\|?[a-zA-Z0-9_]+\|?>"#,
-            with: " ",
-            options: .regularExpression
-        )
-        s = s.replacingOccurrences(of: "```", with: " ")
-        s = s.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
-        return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func loadedContainer() async throws -> ModelContainer {

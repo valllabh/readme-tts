@@ -50,6 +50,19 @@ Option Escape also starts reading, matching the macOS accessibility Speak Select
 
 AI Script Polish can be toggled in the right click menu. The first chunk always speaks immediately without waiting for the LLM.
 
+## CLI
+
+`make install` links the app binary to `/opt/homebrew/bin/readme`:
+
+```
+readme -t "text to read"        speak text
+readme -f notes.txt             speak file contents
+readme -t "text" -o out.m4a     write audio instead of playing
+readme -f notes.txt -o out.wav  format inferred from extension
+```
+
+Two output formats: m4a (AAC, small, made for sending around) and wav (lossless).
+
 ## Documentation
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design details.

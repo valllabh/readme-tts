@@ -10,9 +10,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var stopItem: NSMenuItem!
     private var debugItem: NSMenuItem!
 
-    private var backButton: NSButton!
-    private var playPauseButton: NSButton!
-    private var forwardButton: NSButton!
+    private let transportRow = TransportRowView()
 
     private var menu: NSMenu!
 
@@ -108,7 +106,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         readItem.keyEquivalentModifierMask = [.command, .option]
         readItem.target = self
 
-        menu.addItem(makeTransportRow())
+        transportRow.onBack = { [weak self] in self?.seekBack() }
+        transportRow.onPlayPause = { [weak self] in self?.togglePause() }
+        transportRow.onForward = { [weak self] in self?.seekForward() }
+        let transportItem = NSMenuItem()
+        transportItem.view = transportRow
+        menu.addItem(transportItem)
 
         stopItem = menu.addItem(
             withTitle: "Stop",
@@ -175,48 +178,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    // Remote control style transport: back 5, play or pause in the center,
-    // forward 5, in one row. Lives in a custom view so the menu stays open
-    // while seeking repeatedly.
-    private func makeTransportRow() -> NSMenuItem {
-        backButton = transportButton("gobackward.5", action: #selector(seekBack), pointSize: 16)
-        playPauseButton = transportButton("play.fill", action: #selector(togglePause), pointSize: 24)
-        forwardButton = transportButton("goforward.5", action: #selector(seekForward), pointSize: 16)
-
-        let stack = NSStackView(views: [backButton, playPauseButton, forwardButton])
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 28
-        stack.translatesAutoresizingMaskIntoConstraints = false
-
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 44))
-        container.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-        ])
-
-        let item = NSMenuItem()
-        item.view = container
-        return item
-    }
-
-    private func transportButton(_ symbol: String, action: Selector, pointSize: CGFloat) -> NSButton {
-        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)?
-            .withSymbolConfiguration(config)
-        let button = NSButton(image: image ?? NSImage(), target: self, action: action)
-        button.isBordered = false
-        button.imageScaling = .scaleNone
-        return button
-    }
-
-    private func setPlayPauseSymbol(_ symbol: String) {
-        let config = NSImage.SymbolConfiguration(pointSize: 24, weight: .medium)
-        playPauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)?
-            .withSymbolConfiguration(config)
-    }
-
     // MARK: - Actions
 
     @objc private func readSelection() {
@@ -260,34 +221,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         switch status {
         case .idle:
             item.button?.image = Self.icon("waveform.circle")
-            setPlayPauseSymbol("play.fill")
-            playPauseButton.isEnabled = true
+            transportRow.setState(playing: false, transportEnabled: false, playEnabled: true)
             stopItem.isEnabled = false
-            backButton.isEnabled = false
-            forwardButton.isEnabled = false
             readItem.isEnabled = true
         case .loadingModel:
-            setPlayPauseSymbol("play.fill")
-            playPauseButton.isEnabled = false
+            transportRow.setState(playing: false, transportEnabled: false, playEnabled: false)
             stopItem.isEnabled = true
-            backButton.isEnabled = false
-            forwardButton.isEnabled = false
             readItem.isEnabled = true
         case .speaking:
             item.button?.image = Self.icon("waveform.circle.fill")
-            setPlayPauseSymbol("pause.fill")
-            playPauseButton.isEnabled = true
+            transportRow.setState(playing: true, transportEnabled: true, playEnabled: true)
             stopItem.isEnabled = true
-            backButton.isEnabled = true
-            forwardButton.isEnabled = true
             readItem.isEnabled = true
         case .paused:
             item.button?.image = Self.icon("pause.circle.fill")
-            setPlayPauseSymbol("play.fill")
-            playPauseButton.isEnabled = true
+            transportRow.setState(playing: false, transportEnabled: true, playEnabled: true)
             stopItem.isEnabled = true
-            backButton.isEnabled = true
-            forwardButton.isEnabled = true
             readItem.isEnabled = true
         }
     }

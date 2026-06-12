@@ -5,16 +5,36 @@ ReadMe is a pure Swift menu bar app. All inference runs in process through MLX v
 ## Components
 
 ```
-Sources/ReadMeCore/    pure logic library: text normalizer, number speller, sentence chunker, preferences
+Sources/ReadMeCore/    pure logic, fully testable: TextNormalizer, NumberSpeller,
+                       SentenceChunker, TextSegmenter, SelectionSignature,
+                       PolishValidator, Preferences
 Sources/ReadMe/
-  App/        entry point, app delegate, status bar menu, preferences window, services provider
+  App/        entry point, app delegate, status bar controller, transport row
+              view, preferences window, debug trace window, HUD feedback,
+              services provider, CLI argument handling
   Selection/  reads the selected text from the frontmost app
   Hotkey/     global hotkeys via the Carbon hotkey API
-  Speech/     engine management, script polish LLM, read orchestration
+  Speech/     SpeechPipeline (the single generate loop), EngineManager,
+              ScriptPreparer (polish LLM), SpeechController (live playback
+              orchestration), AudioFileRenderer (file output)
   Playback/   streaming audio player with pause and seek
+  Support/    file logger
 Sources/ReadMeSelfTest/  assert based tests for ReadMeCore, run via make test
 scripts/makeicon.swift   regenerates Assets/ReadMe.icns (make icon)
 ```
+
+Single responsibility map: SpeechPipeline is the one place the read pipeline
+lives (segment, normalize, chunk, polish prefetch, generate, silence); its two
+consumers differ only in the sample sink, the streaming player for live reads
+and AVAudioFile for the CLI. Polish output validation is pure string logic in
+ReadMeCore (PolishValidator) so every guard is unit tested.
+
+## CLI
+
+The app binary doubles as a CLI (symlinked to /opt/homebrew/bin/readme by
+make install): readme -t "text" speaks, -f file speaks a file, -o out.m4a
+renders to a file (m4a small and portable, wav lossless). CLI runs headless,
+no permission prompts or status item.
 
 ### Preferences (App/PreferencesWindow.swift)
 

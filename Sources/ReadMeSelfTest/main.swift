@@ -215,6 +215,39 @@ do {
            "segmenter: later segments bounded")
 }
 
+// MARK: - PolishValidator
+
+do {
+    let input = "The quarterly report shows steady growth across all regions."
+    let good = "The quarterly report shows steady growth across all regions."
+    expect(PolishValidator.validate(input: input, rawOutput: good) == .ok(good), "validator: clean output passes")
+
+    expect(
+        PolishValidator.validate(input: "Sauteed for 3m 55s", rawOutput: "Sauteed for 3m 55s https://paste.org/12345678/") ==
+            .rejected(reason: "fabricated content"),
+        "validator: fabricated url rejected"
+    )
+
+    expect(
+        PolishValidator.validate(input: input, rawOutput: good + " ний") ==
+            .rejected(reason: "foreign script"),
+        "validator: foreign script rejected"
+    )
+
+    let looped = "smaller TTS model would cost voice quality. ieux TTS model would cost voice quality."
+    expect(
+        PolishValidator.validate(input: "smaller TTS model would cost voice quality.", rawOutput: looped) ==
+            .rejected(reason: "repetition loop"),
+        "validator: repetition loop rejected"
+    )
+
+    expectEqual(
+        PolishValidator.sanitize("Hello there<end_of_turn><end_of_turn>"),
+        "Hello there",
+        "validator: template tokens stripped"
+    )
+}
+
 // MARK: - SelectionSignature
 
 do {
