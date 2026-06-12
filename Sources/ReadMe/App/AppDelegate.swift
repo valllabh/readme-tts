@@ -19,6 +19,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // One menu bar instance only: launching the binary again (Spotlight,
+        // terminal without flags) activates the existing app and exits.
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+            if !others.isEmpty {
+                Log.info("launch: another instance is already running, exiting")
+                others.first?.activate()
+                exit(0)
+            }
+        }
+
         // First launch after an install with a changed signature: clear the
         // stale permission rows so the fresh grant sticks, then prompt.
         SelectionReader.resetStalePermission()
@@ -39,6 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         services = ServicesProvider(speech: speech)
         NSApp.servicesProvider = services
         NSUpdateDynamicServices()
+
+        // Accept speak commands from the CLI so it reuses this warm instance.
+        CommandServer.start(speech: speech)
 
         // Debug path: ReadMe --filter-test "raw text" prints the regex
         // pipeline result and the Gemma filter result side by side, no audio.

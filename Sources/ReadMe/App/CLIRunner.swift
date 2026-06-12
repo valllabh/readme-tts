@@ -11,11 +11,38 @@ import ReadMeCore
 //   --output-type m4a|wav             explicit format (default m4a)
 @MainActor
 enum CLIRunner {
+    // Real terminal descriptors, saved before the noise silencing redirect.
+    private static var terminalOut = FileHandle.standardOutput
+    private static var terminalErr = FileHandle.standardError
+
+    // Called first thing at process start, before any logging: when invoked
+    // as a CLI without --verbose, keep handles to the real terminal for our
+    // own output and send everything else (library prints, NSLog mirror) to
+    // /dev/null.
+    static func prepareConsole() {
+        let args = CommandLine.arguments
+        // Any non system dash argument means a terminal invocation, including
+        // mistyped flags, so even the error path stays free of log noise.
+        let isCLI = args.dropFirst().contains { arg in
+            arg.hasPrefix("-")
+                && !arg.hasPrefix("-psn")
+                && !arg.hasPrefix("-NS")
+                && !arg.hasPrefix("-Apple")
+        }
+        guard isCLI, !args.contains("--verbose"), !args.contains("-v") else { return }
+        terminalOut = FileHandle(fileDescriptor: dup(1), closeOnDealloc: false)
+        terminalErr = FileHandle(fileDescriptor: dup(2), closeOnDealloc: false)
+        let devnull = open("/dev/null", O_WRONLY)
+        dup2(devnull, 1)
+        dup2(devnull, 2)
+        close(devnull)
+    }
+
     static func handleIfNeeded(speech: SpeechController) -> Bool {
         let args = CommandLine.arguments
 
         if args.contains("-h") || args.contains("--help") {
-            print(usage)
+            terminalOut.write(Data((usage + "\n").utf8))
             exit(0)
         }
 
@@ -32,7 +59,23 @@ enum CLIRunner {
             text = value
         }
 
-        guard let text else { return false }
+        guard let text else {
+            // Unknown flags must not fall through and launch a second menu
+            // bar instance. System launch arguments (-psn legacy, -NS and
+            // -Apple debug flags) are tolerated.
+            let unknown = args.dropFirst().first { arg in
+                arg.hasPrefix("-")
+                    && !arg.hasPrefix("-psn")
+                    && !arg.hasPrefix("-NS")
+                    && !arg.hasPrefix("-Apple")
+                    && arg != "--filter-test"
+            }
+            if let unknown {
+                terminalErr.write(Data("readme: unknown option \(unknown)\n\n\(usage)\n".utf8))
+                exit(1)
+            }
+            return false
+        }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             fail("nothing to read")
@@ -43,8 +86,10 @@ enum CLIRunner {
             let format = outputFormat(args: args, url: url)
             Task {
                 do {
+                    // Silent on success; details only under --verbose.
                     let seconds = try await AudioFileRenderer.render(text: trimmed, to: url, format: format)
                     print("wrote \(url.path) (\(String(format: "%.1f", seconds))s of audio)")
+                    _ = seconds
                     exit(0)
                 } catch {
                     fail("render failed: \(error.localizedDescription)")
@@ -53,7 +98,15 @@ enum CLIRunner {
             return true
         }
 
-        // Speak aloud and quit when playback finishes.
+        // A running menu bar app is already warm: hand the text to it and
+        // return immediately. Audio starts instantly and the user keeps the
+        // transport controls.
+        if CommandServer.send(CommandServer.Command(action: "speak", text: trimmed)) {
+            exit(0)
+        }
+
+        // No running app: speak from this process and quit when playback
+        // finishes.
         var spoke = false
         speech.onStatusChange = { status in
             if status == .speaking {
@@ -103,7 +156,7 @@ enum CLIRunner {
     }
 
     private static func fail(_ message: String) -> Never {
-        FileHandle.standardError.write(Data("readme: \(message)\n".utf8))
+        terminalErr.write(Data("readme: \(message)\n".utf8))
         exit(1)
     }
 }

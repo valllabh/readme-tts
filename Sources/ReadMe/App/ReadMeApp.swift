@@ -4,6 +4,7 @@ import AppKit
 @MainActor
 enum ReadMeApp {
     static func main() {
+        CLIRunner.prepareConsole()
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
