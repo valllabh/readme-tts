@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             Task { [speech] in
+                await EngineManager.shared.warmUp(Preferences.engine)
                 if Preferences.aiScriptEnabled {
                     await ScriptPreparer.shared.warmUp()
                 }

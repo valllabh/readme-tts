@@ -50,7 +50,11 @@ Marvis constraints that shape the pipeline: it caps each generation call at 60 s
 Two stages run before any audio is generated:
 
 1. TextNormalizer (programmatic, always on): markdown structure, tables (pipe and tab rows become comma separated cells per row), links and bare URLs, emails, times, currency, percent, units, ordinals, decimals, years, long digit strings, symbols, abbreviations, snake case. Number expansion uses NumberFormatter spellOut. Rules ported from coqui TTS cleaners, misaki, and NeMo categories.
-2. AI Script Polish (optional, default on): Gemma 3 1B 4bit through mlx-swift-lm ChatSession rewrites each chunk for natural reading. The polish for chunk N+1 runs while chunk N generates and plays, so its latency stays hidden; chunk one always skips the polish to preserve the instant start. If the LLM is not loaded yet, text passes through unchanged.
+2. AI Script Polish (optional, default on): Gemma 3 1B 4bit through mlx-swift-lm ChatSession rewrites each chunk for natural reading. The polish for chunk N+1 starts after chunk N finishes generating and runs while N plays, so it never competes with TTS generation for the GPU; chunk one always skips the polish to preserve the instant start. If the LLM is not loaded yet, text passes through unchanged.
+
+## Speed
+
+Time to first audio is the primary metric. The levers: both models preload and prime at app start (a tiny throwaway generation compiles the lazy Metal kernels, which otherwise cost seconds on the first real read); the first chunk streams at a 0.2 second interval for the earliest possible samples while later chunks use 1.0 second for throughput; the polish LLM only runs when the GPU is idle between chunk generations; the pasteboard fallback polls every 10 ms with a 300 ms cap. Every read logs "first audio after N ms" so regressions show up in the log.
 
 ### Chunking and pauses (Speech/SentenceChunker.swift)
 

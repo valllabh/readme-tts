@@ -27,9 +27,21 @@ actor ScriptPreparer {
     private var container: ModelContainer?
     private var loadTask: Task<ModelContainer, Error>?
 
-    // Preload at app start so reads can use the polish pass immediately.
+    private var primed = false
+
+    // Preload at app start so reads can use the polish pass immediately. A
+    // tiny throwaway generation compiles the Metal kernels up front.
     func warmUp() async {
-        _ = try? await loadedContainer()
+        guard let container = try? await loadedContainer() else { return }
+        guard !primed else { return }
+        primed = true
+        let session = ChatSession(
+            container,
+            generateParameters: GenerateParameters(maxTokens: 4, temperature: 0.0)
+        )
+        let start = Date()
+        _ = try? await session.respond(to: "Hi")
+        Log.info("polish model primed in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
     }
 
     func prepare(_ text: String) async -> String {

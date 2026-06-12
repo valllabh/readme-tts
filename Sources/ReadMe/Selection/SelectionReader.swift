@@ -81,9 +81,11 @@ enum SelectionReader {
 
         postCopyKeystroke()
 
-        let deadline = Date().addingTimeInterval(0.5)
+        // Fine grained polling keeps the happy path fast; the timeout only
+        // bounds the no selection case.
+        let deadline = Date().addingTimeInterval(0.3)
         while pasteboard.changeCount == oldCount && Date() < deadline {
-            usleep(20_000)
+            usleep(10_000)
         }
 
         guard pasteboard.changeCount != oldCount else { return nil }

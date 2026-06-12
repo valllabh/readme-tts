@@ -89,10 +89,13 @@ final class SpeechController {
                     return
                 }
                 let polish = Preferences.aiScriptEnabled
+                let readStart = Date()
+                var firstAudioLogged = false
 
-                // The LLM polish for chunk N+1 runs while chunk N is being
-                // generated and played, so its latency stays hidden. The very
-                // first chunk skips the polish to keep the instant start.
+                // The LLM polish for chunk N+1 runs after chunk N finishes
+                // generating, while N plays, so it never competes with TTS
+                // generation for the GPU. The first chunk skips the polish
+                // to keep the instant start.
                 var nextPolish: Task<String, Never>?
 
                 for (index, piece) in pieces.enumerated() {
@@ -100,18 +103,16 @@ final class SpeechController {
                     let spokenText: String
                     if let pending = nextPolish {
                         spokenText = await pending.value
-                    } else {
-                        spokenText = piece.text
-                    }
-                    if polish, index + 1 < pieces.count {
-                        let upcoming = pieces[index + 1].text
-                        nextPolish = Task {
-                            await ScriptPreparer.shared.prepare(upcoming)
-                        }
-                    } else {
                         nextPolish = nil
+                    } else {
+                        spokenText = polish && index > 0
+                            ? await ScriptPreparer.shared.prepare(piece.text)
+                            : piece.text
                     }
 
+                    // A fine streaming interval on the first chunk minimizes
+                    // time to first audio; later chunks use a coarse interval
+                    // for throughput since playback is already running.
                     let stream = model.generateSamplesStream(
                         text: spokenText,
                         voice: Preferences.voice.isEmpty ? kind.defaultVoice : Preferences.voice,
@@ -119,11 +120,25 @@ final class SpeechController {
                         refText: nil,
                         language: nil,
                         generationParameters: nil,
-                        streamingInterval: 0.5
+                        streamingInterval: index == 0 ? 0.2 : 1.0
                     )
                     for try await samples in stream {
                         try Task.checkCancellation()
+                        if !firstAudioLogged {
+                            firstAudioLogged = true
+                            let ms = Int(Date().timeIntervalSince(readStart) * 1000)
+                            Log.info("read: first audio after \(ms) ms")
+                        }
                         player.append(samples)
+                    }
+
+                    // Prefetch the polish for the next chunk now that the GPU
+                    // is free; it runs while this chunk's audio plays.
+                    if polish, index + 1 < pieces.count {
+                        let upcoming = pieces[index + 1].text
+                        nextPolish = Task {
+                            await ScriptPreparer.shared.prepare(upcoming)
+                        }
                     }
                     // The model never sees line or paragraph breaks, so
                     // structural pauses are injected as real silence.

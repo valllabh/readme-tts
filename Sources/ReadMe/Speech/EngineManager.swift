@@ -31,10 +31,25 @@ actor EngineManager {
         loaded[kind] != nil
     }
 
-    // Preload the default engine in the background at app start so the first
-    // read does not pay the model load cost.
+    private var primed: Set<EngineKind> = []
+
+    // Preload the default engine at app start, then run a tiny throwaway
+    // generation. MLX compiles Metal kernels lazily, so without priming the
+    // first real read pays seconds of kernel compilation.
     func warmUp(_ kind: EngineKind) async {
-        _ = try? await model(for: kind)
+        guard let model = try? await model(for: kind) else { return }
+        guard !primed.contains(kind) else { return }
+        primed.insert(kind)
+        let start = Date()
+        _ = try? await model.generate(
+            text: "Hi.",
+            voice: kind.defaultVoice,
+            refAudio: nil,
+            refText: nil,
+            language: nil,
+            generationParameters: nil
+        )
+        Log.info("engine primed in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
     }
 
     // An interrupted download can leave a partial model directory that the
