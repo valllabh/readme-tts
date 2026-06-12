@@ -58,10 +58,14 @@ actor ScriptPreparer {
         // Use the model only if it is already in memory; never delay speech.
         guard let container else { return text }
         do {
+            // Token cap scaled to the input: a rewrite never legitimately
+            // needs much more room than the input, and degenerate outputs
+            // (dot spam, loops) stop wasting GPU time sooner.
+            let cap = min(700, max(80, text.count / 2))
             let session = ChatSession(
                 container,
                 instructions: Self.instructions,
-                generateParameters: GenerateParameters(maxTokens: 700, temperature: 0.0)
+                generateParameters: GenerateParameters(maxTokens: cap, temperature: 0.0)
             )
             DebugTrace.append("polish in", text)
             let raw = try await session.respond(to: text)
@@ -82,6 +86,16 @@ actor ScriptPreparer {
             guard !Self.hasLoopedRepetition(output: out, input: text) else {
                 DebugTrace.append("polish rejected (repetition loop)", out)
                 Log.info("polish rejected: repetition loop")
+                return text
+            }
+            guard !Self.fabricatesContent(input: text, output: out) else {
+                DebugTrace.append("polish rejected (fabricated content)", out)
+                Log.info("polish rejected: fabricated content")
+                return text
+            }
+            guard !Self.introducesForeignScript(input: text, output: out) else {
+                DebugTrace.append("polish rejected (foreign script)", out)
+                Log.info("polish rejected: foreign script")
                 return text
             }
             DebugTrace.append("polish out", out)
@@ -110,6 +124,47 @@ actor ScriptPreparer {
         text.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 2 }
+    }
+
+    // Words a rewrite may legitimately introduce: spoken forms of numbers,
+    // symbols, and units. Anything else novel means the model made it up
+    // (seen live: a fabricated paste.org URL appended to a status line).
+    private static let spokenFormWords: Set<String> = [
+        "zero", "one", "two", "three", "four", "five", "six", "seven",
+        "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+        "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+        "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+        "hundred", "thousand", "million", "billion", "first", "second",
+        "third", "fourth", "fifth", "point", "dot", "slash", "dash", "at",
+        "percent", "degrees", "plus", "minus", "equals", "and", "or", "to",
+        "number", "hash", "colon", "comma", "star", "underscore", "letter",
+        "capital", "seconds", "minutes", "minute", "hours", "hour", "days",
+        "day", "dollars", "dollar", "cents", "cent", "euros", "pounds",
+        "version", "the", "is", "for", "of",
+    ]
+
+    static func fabricatesContent(input: String, output: String) -> Bool {
+        let inputWords = Set(words(of: input))
+        let novel = Set(words(of: output))
+            .subtracting(inputWords)
+            .subtracting(spokenFormWords)
+        return novel.count > max(1, inputWords.count / 5)
+    }
+
+    // Output in a script the input never used (Cyrillic, CJK, Arabic,
+    // Hangul) is hallucination, not a rewrite.
+    static func introducesForeignScript(input: String, output: String) -> Bool {
+        func hasForeign(_ s: String) -> Bool {
+            s.unicodeScalars.contains { scalar in
+                let v = scalar.value
+                return (0x0400 ... 0x04FF).contains(v)   // Cyrillic
+                    || (0x0600 ... 0x06FF).contains(v)   // Arabic
+                    || (0x3040 ... 0x30FF).contains(v)   // Kana
+                    || (0x4E00 ... 0x9FFF).contains(v)   // CJK
+                    || (0xAC00 ... 0xD7AF).contains(v)   // Hangul
+            }
+        }
+        return hasForeign(output) && !hasForeign(input)
     }
 
     // Small models loop: seen live as the input sentence duplicated with a
