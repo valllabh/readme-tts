@@ -7,6 +7,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let speech: SpeechController
 
     private var readItem: NSMenuItem!
+    private var exportItem: NSMenuItem!
 
     private let transportRow = TransportRowView()
 
@@ -122,6 +123,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         transportItem.view = transportRow
         menu.addItem(transportItem)
 
+        exportItem = menu.addItem(
+            withTitle: "Export Last Read…",
+            action: #selector(exportLastRead),
+            keyEquivalent: ""
+        )
+        exportItem.target = self
+
         menu.addItem(.separator())
 
         let prefsItem = menu.addItem(
@@ -158,6 +166,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func readClipboard() {
         Log.info("menu: read clipboard")
         speech.readClipboard()
+    }
+
+    @objc private func exportLastRead() {
+        Log.info("menu: export last read")
+        speech.exportLastRead()
     }
 
     @objc private func togglePause() {
@@ -217,22 +230,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             transportRow.setState(playing: false, transportEnabled: false, playEnabled: true, stopEnabled: false)
             transportRow.clearTime()
             readItem.isEnabled = true
+            exportItem.isEnabled = speech.lastReadText != nil
         case .loadingModel:
             stopSpeakingAnimation()
             transportRow.setState(playing: false, transportEnabled: false, playEnabled: false, stopEnabled: true)
             transportRow.clearTime()
             readItem.isEnabled = true
+            exportItem.isEnabled = false
         case .speaking:
             startSpeakingAnimation()
             transportRow.setState(playing: true, transportEnabled: true, playEnabled: true, stopEnabled: true)
             updateTimeLabel()
             readItem.isEnabled = true
+            exportItem.isEnabled = false
         case .paused:
             stopSpeakingAnimation()
             item.button?.image = StatusGlyph.image(.paused)
             transportRow.setState(playing: false, transportEnabled: true, playEnabled: true, stopEnabled: true)
             updateTimeLabel()
             readItem.isEnabled = true
+            exportItem.isEnabled = false
         }
     }
 

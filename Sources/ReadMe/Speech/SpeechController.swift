@@ -1,6 +1,7 @@
 import ReadMeCore
 import AppKit
 import MLXAudioTTS
+import UniformTypeIdentifiers
 
 // Orchestrates the whole read flow: capture text, stream generation from the
 // selected engine, and feed the streaming player. Generation runs ahead of
@@ -31,6 +32,7 @@ final class SpeechController {
     private var player: StreamingPlayer?
     private var generationTask: Task<Void, Never>?
     private var readSignature: String?
+    private(set) var lastReadText: String?
 
     init() {
         // Speed changes in Settings apply to the current read immediately.
@@ -103,8 +105,44 @@ final class SpeechController {
         read(text)
     }
 
+    // Re-renders the last read text into an audio file. Generation happens
+    // fresh (the player's samples are gone once playback ends), reusing the
+    // CLI's tested render path.
+    func exportLastRead() {
+        guard let text = lastReadText else {
+            NSSound.beep()
+            onNotice?("Nothing read yet")
+            return
+        }
+        guard status == .idle else {
+            onNotice?("Wait for the current read to finish")
+            return
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.mpeg4Audio, .wav]
+        panel.nameFieldStringValue = "ReadMe Audio.m4a"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        onNotice?("Exporting audio")
+        Task { [weak self] in
+            do {
+                let format: AudioFileRenderer.Format =
+                    url.pathExtension.lowercased() == "wav" ? .wav : .m4a
+                let seconds = try await AudioFileRenderer.render(text: text, to: url, format: format)
+                Log.info("export: \(Int(seconds))s to \(url.lastPathComponent)")
+                self?.onNotice?("Exported \(Int(seconds)) seconds of audio")
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch {
+                Log.error("export failed: \(error)")
+                NSSound.beep()
+                self?.onNotice?("Export failed")
+            }
+        }
+    }
+
     func read(_ text: String) {
         stopPlayback()
+        lastReadText = text
         readSignature = SelectionSignature.make(text)
         let kind = Preferences.engine
         Log.info("read: \(text.count) chars, engine=\(kind.rawValue), voice=\(Preferences.voice), polish=\(Preferences.aiScriptEnabled)")
