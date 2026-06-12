@@ -17,6 +17,9 @@ public enum TextNormalizer {
         // (check marks, ✻ style status icons, bullets).
         s = replace(s, #"(?m)^[ \t]*[-=_*~•·#]{2,}[ \t]*$"#, "")
         s = replace(s, #"[✔✓✗✘●•▪◦‣⁃\x{2190}-\x{21FF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]"#, " ")
+        // Invisible placeholders from rich text and web selections: object
+        // replacement (attachments), BOM, zero width spaces and joiners.
+        s = replace(s, #"[\x{FFFC}\x{FEFF}\x{200B}-\x{200D}]"#, "")
 
         // Standalone page numbers must go before number expansion turns them
         // into spelled out words mid text.
@@ -60,10 +63,24 @@ public enum TextNormalizer {
             return NumberSpeller.time(hour: h, minute: m, suffix: groups[3].isEmpty ? nil : groups[3])
         }
 
+        // Identifier prefixes: a hyphen between letters and digits is a
+        // separator, not a range (CVE-2026, ISO-8859, COVID-19).
+        s = replace(s, #"([A-Za-z])-(\d)"#, "$1 $2")
+
         // Ratios and number ranges, before digits become words: 16:9 reads
-        // sixteen to nine, 3-5 reads three to five.
+        // sixteen to nine, 3-5 reads three to five. Long digit groups are
+        // identifiers (CVE 2026-33827), not ranges; reading "to" there sent
+        // nonsense number runs to the TTS, so they become comma pauses.
+        // Four digit year pairs stay ranges (1999-2026).
         s = replace(s, #"(\d+):(\d+)"#, "$1 to $2")
-        s = replace(s, #"(\d)[ \t]*[-–][ \t]*(\d)"#, "$1 to $2")
+        s = replaceMatches(s, #"(\d+)[ \t]*[-–][ \t]*(\d+)"#) { groups in
+            let a = groups[1], b = groups[2]
+            let yearLike = { (t: String) in t.count == 4 && (t.hasPrefix("19") || t.hasPrefix("20")) }
+            if (a.count <= 3 && b.count <= 3) || (yearLike(a) && yearLike(b)) {
+                return a + " to " + b
+            }
+            return a + ", " + b
+        }
 
         // Currency: $5.50, $3,000.
         s = replaceMatches(s, #"\$\s?([\d,]+)(?:\.(\d{1,2}))?"#) { groups in
@@ -143,6 +160,12 @@ public enum TextNormalizer {
 
         // Identifiers: snake_case becomes spaces.
         s = replace(s, #"(\w)_(\w)"#, "$1 $2")
+
+        // Flattened web tables jam cells together with no separator
+        // (DescriptionCVESeverityType, ExecutionRemote). A space at every
+        // lower to upper boundary pulls the words back apart; for speech the
+        // cost on true camel case names (mac OS, Java Script) is inaudible.
+        s = replace(s, #"([a-z])([A-Z])"#, "$1 $2")
 
         // Punctuation read the way people speak it: pauses, not symbol
         // names. Semicolons and colons become commas, parentheticals and

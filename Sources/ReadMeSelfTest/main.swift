@@ -185,6 +185,33 @@ expectEqual(
     "normalizer: caption markers dropped"
 )
 
+// CVE style identifiers are separators with comma pauses, never "to" ranges;
+// year pairs stay ranges. This is the fix for the CVE table read that sent
+// nonsense number runs to the TTS and made it hallucinate.
+expectEqual(
+    TextNormalizer.normalize("Patched in CVE-2026-33827 today."),
+    "Patched in CVE twenty twenty six, three three eight two seven today.",
+    "normalizer: id hyphens read as pauses not ranges"
+)
+
+expectEqual(
+    TextNormalizer.normalize("From 1999-2026 it grew."),
+    "From nineteen ninety nine to twenty twenty six it grew.",
+    "normalizer: year pairs stay ranges"
+)
+
+expectEqual(
+    TextNormalizer.normalize("DescriptionSeverityType columns."),
+    "Description Severity Type columns.",
+    "normalizer: jammed table cells split at case boundaries"
+)
+
+expectEqual(
+    TextNormalizer.normalize("Before\u{FFFC} and\u{200B} after."),
+    "Before and after.",
+    "normalizer: invisible placeholders stripped"
+)
+
 // Separator lines and decorative marks produce no chunks.
 do {
     let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"
