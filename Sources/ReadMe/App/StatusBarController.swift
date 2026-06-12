@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private var backItem: NSMenuItem!
     private var forwardItem: NSMenuItem!
     private var aiScriptItem: NSMenuItem!
+    private var debugItem: NSMenuItem!
 
     private var menu: NSMenu!
 
@@ -160,6 +161,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
         logsItem.target = self
 
+        debugItem = menu.addItem(
+            withTitle: "Debug Mode",
+            action: #selector(toggleDebugMode),
+            keyEquivalent: ""
+        )
+        debugItem.target = self
+        debugItem.state = Preferences.debugMode ? .on : .off
+
         menu.addItem(.separator())
 
         let quitItem = menu.addItem(
@@ -186,6 +195,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func openLogs() {
         Log.info("menu: open logs")
         NSWorkspace.shared.activateFileViewerSelecting([Log.shared.fileURL])
+    }
+
+    @objc private func toggleDebugMode() {
+        Preferences.debugMode.toggle()
+        debugItem.state = Preferences.debugMode ? .on : .off
+        Log.info("menu: debug mode \(Preferences.debugMode ? "on" : "off")")
+        if Preferences.debugMode {
+            DebugWindowController.shared.show()
+            DebugTrace.append("polish system prompt", ScriptPreparer.instructions)
+        } else {
+            DebugWindowController.shared.window?.orderOut(nil)
+        }
     }
 
     @objc private func toggleAIScript() {

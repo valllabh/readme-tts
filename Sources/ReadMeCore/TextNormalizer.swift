@@ -11,6 +11,11 @@ public enum TextNormalizer {
         var s = text.replacingOccurrences(of: "\r\n", with: "\n")
         s = s.replacingOccurrences(of: "\r", with: "\n")
 
+        // Separator lines (markdown horizontal rules, terminal dividers) and
+        // decorative marks have no spoken value and confuse the polish model.
+        s = replace(s, #"(?m)^[ \t]*[-=_*~•·#]{2,}[ \t]*$"#, "")
+        s = replace(s, #"[✔✓✗✘●•▪◦‣⁃→←↑↓]"#, " ")
+
         // Markdown structure: fences, headings, bullets, quotes.
         s = replace(s, #"```[a-zA-Z0-9]*\n?"#, "")
         s = replace(s, #"`([^`]*)`"#, "$1")

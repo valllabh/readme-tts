@@ -110,6 +110,8 @@ final class SpeechController {
                             : piece.text
                     }
 
+                    DebugTrace.append("TTS chunk \(index + 1)/\(pieces.count), pause \(piece.pauseAfter)s", spokenText)
+
                     // A fine streaming interval on the first chunk minimizes
                     // time to first audio; later chunks use a coarse interval
                     // for throughput since playback is already running.

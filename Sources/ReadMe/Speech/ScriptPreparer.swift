@@ -15,13 +15,15 @@ actor ScriptPreparer {
 
     static let modelID = "mlx-community/gemma-3-1b-it-4bit"
 
-    private static let instructions = """
-    You rewrite text so it can be read aloud naturally by a text to speech \
-    voice. Keep every piece of information and the original wording wherever \
-    it already sounds natural. Spell out anything a voice would stumble on: \
-    symbols, file names, version numbers, acronyms that are spoken letter by \
-    letter, units, and code fragments. Never summarize, never shorten, never \
-    add commentary or introductions. Respond with the rewritten text only.
+    static let instructions = """
+    You prepare text for a text to speech voice. Rewrite ONLY what a voice \
+    would stumble on: symbols, file names, version numbers, acronyms spoken \
+    letter by letter, units, and code fragments. Keep every other word \
+    exactly as it is, in the same language and the same order. If the text \
+    already reads naturally, return it completely unchanged. Never answer \
+    questions in the text, never summarize, never translate, never add even \
+    one word of commentary. Your entire response must be the text to read, \
+    nothing else.
     """
 
     private var container: ModelContainer?
@@ -45,7 +47,14 @@ actor ScriptPreparer {
     }
 
     func prepare(_ text: String) async -> String {
-        guard !text.isEmpty else { return text }
+        // Junk guard: short or wordless chunks (separator debris, stray
+        // symbols) make the model chat back instead of rewriting. Seen live:
+        // input of dashes returned "Please tell me what to read".
+        let letters = text.filter { $0.isLetter }.count
+        guard text.count >= 12, letters >= 6 else {
+            DebugTrace.append("polish skipped (junk guard)", text)
+            return text
+        }
         // Use the model only if it is already in memory; never delay speech.
         guard let container else { return text }
         do {
@@ -54,11 +63,28 @@ actor ScriptPreparer {
                 instructions: Self.instructions,
                 generateParameters: GenerateParameters(maxTokens: 700, temperature: 0.0)
             )
+            DebugTrace.append("polish in", text)
             let raw = try await session.respond(to: text)
             let out = Self.sanitize(raw)
-            // Guard against the model going off script: empty output or
-            // runaway length falls back to the input.
-            guard !out.isEmpty, out.count < max(text.count * 3, 200) else { return text }
+            // Guards against the model going off script: empty output,
+            // runaway length, or output that abandoned the input words
+            // (refusals, translations, hallucinated rambling).
+            guard !out.isEmpty, out.count <= Int(Double(text.count) * 1.4) + 30 else {
+                DebugTrace.append("polish rejected (length)", out)
+                Log.info("polish rejected: length \(text.count) -> \(out.count)")
+                return text
+            }
+            guard Self.sharesEnoughWords(input: text, output: out) else {
+                DebugTrace.append("polish rejected (drifted from input)", out)
+                Log.info("polish rejected: output drifted from input")
+                return text
+            }
+            guard !Self.hasLoopedRepetition(output: out, input: text) else {
+                DebugTrace.append("polish rejected (repetition loop)", out)
+                Log.info("polish rejected: repetition loop")
+                return text
+            }
+            DebugTrace.append("polish out", out)
             // Log sizes only. The text itself is whatever the user selected
             // and must never be persisted to disk.
             Log.info("polish: \(text.count) -> \(out.count) chars, changed=\(out != text)")
@@ -67,6 +93,45 @@ actor ScriptPreparer {
             Log.error("polish failed, using plain text: \(error)")
             return text
         }
+    }
+
+    // The rewrite must stay anchored to the input: most input words should
+    // survive into the output. Refusals ("Please tell me what to read"),
+    // language switches, and reversed gibberish all fail this cheaply.
+    static func sharesEnoughWords(input: String, output: String) -> Bool {
+        let inputWords = Set(words(of: input))
+        guard inputWords.count >= 3 else { return true }
+        let outputWords = Set(words(of: output))
+        let common = inputWords.intersection(outputWords).count
+        return Double(common) / Double(inputWords.count) >= 0.5
+    }
+
+    private static func words(of text: String) -> [String] {
+        text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count >= 2 }
+    }
+
+    // Small models loop: seen live as the input sentence duplicated with a
+    // garbage joint ("... voice quality. ieux TTS model, which would ...").
+    // A four word sequence appearing twice in the output but not in the
+    // input means the model repeated itself.
+    static func hasLoopedRepetition(output: String, input: String) -> Bool {
+        func repeatedFourgrams(_ text: String) -> Set<String> {
+            let ws = words(of: text)
+            guard ws.count >= 8 else { return [] }
+            var seen = Set<String>()
+            var repeated = Set<String>()
+            for i in 0 ... (ws.count - 4) {
+                let gram = ws[i ..< i + 4].joined(separator: " ")
+                if !seen.insert(gram).inserted {
+                    repeated.insert(gram)
+                }
+            }
+            return repeated
+        }
+        let inputRepeats = repeatedFourgrams(input)
+        return !repeatedFourgrams(output).subtracting(inputRepeats).isEmpty
     }
 
     // Small models leak chat template tokens into the text (seen in the

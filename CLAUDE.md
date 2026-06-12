@@ -24,5 +24,7 @@ Use the Makefile: `make build`, `make run`, `make release`, `make bundle`, `make
 - Bundles are signed with the local "ReadMe Dev Signing" certificate (login keychain), so the Accessibility permission survives rebuilds. The Makefile falls back to ad hoc if the cert is missing, which breaks the permission on every build.
 - If the app launches untrusted it runs tccutil reset on its own bundle id before prompting (SelectionReader.resetStalePermission), so stale permission rows from older signatures never linger.
 - Every user action emits a HUD notice under the status item (StatusFeedback). Keep that pattern for new actions; silent failures are not acceptable to VJ.
+- Gemma 1B polish goes off the rails on junk input (chats back, duplicates with garbage joints like "ieux", switches language). ScriptPreparer guards: junk input skip, length ratio 1.4x, word overlap 0.5, repeated 4 gram detector. Keep all four; each caught a real live failure.
+- Debug Mode (menu toggle, off by default) opens a live trace window showing every chunk sent to TTS plus polish in and out. DebugTrace.append is a no op when off. Debug mode also writes content to the log, so it stays off in normal use for privacy.
 - Marvis voices: conversational_a is female (about 182 Hz), conversational_b is male (about 124 Hz), shown as Ava and Leo.
 - docs/ARCHITECTURE.md has the design. Update it when structure changes.

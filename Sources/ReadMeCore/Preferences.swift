@@ -103,6 +103,17 @@ public enum Preferences {
         }
     }
 
+    // Development only: live trace window of everything sent to the TTS and
+    // the polish model. Off by default.
+    public static var debugMode: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "debugMode")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "debugMode")
+        }
+    }
+
     public static var voice: String {
         get {
             UserDefaults.standard.string(forKey: voiceKey)

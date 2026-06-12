@@ -167,6 +167,19 @@ expectEqual(
     "normalizer: tab separated table rows"
 )
 
+// Separator lines and decorative marks produce no chunks.
+do {
+    let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"
+    let chunks = SentenceChunker.chunks(for: TextNormalizer.normalize(text))
+    expect(chunks.count == 2, "pipeline: separators produce no junk chunks")
+    expect(chunks.allSatisfy { !$0.text.contains("-") && !$0.text.contains("✔") }, "pipeline: marks stripped")
+}
+
+do {
+    let chunks = SentenceChunker.chunks(for: TextNormalizer.normalize("===\n***\n- - -"))
+    expect(chunks.isEmpty, "pipeline: separator only selection yields nothing")
+}
+
 if failures > 0 {
     print("\(failures) failure(s)")
     exit(1)

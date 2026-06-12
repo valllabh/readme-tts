@@ -52,6 +52,12 @@ public enum SentenceChunker {
             }
         }
 
+        // Chunks with no letters or digits (leftover punctuation, separator
+        // debris) are unspeakable and would confuse the polish model.
+        result = result.filter { chunk in
+            chunk.text.contains { $0.isLetter || $0.isNumber }
+        }
+
         // No trailing silence after the final chunk.
         if let last = result.last {
             result[result.count - 1] = SpeechChunk(text: last.text, pauseAfter: 0)
