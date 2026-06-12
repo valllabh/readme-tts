@@ -105,6 +105,7 @@ appcast: dist $(SPARKLE_TOOLS)/generate_appcast
 	$(SPARKLE_TOOLS)/generate_appcast --download-url-prefix $(REPO_URL)/releases/download/v$(VERSION)/ -o appcast.xml $(DIST_DIR)
 
 publish: appcast
+	git push origin v$(VERSION)
 	gh release create v$(VERSION) $(DIST_DIR)/$(APP_NAME)-$(VERSION).zip --title "$(APP_NAME) $(VERSION)" --generate-notes
 	git add appcast.xml
 	git commit -m "Appcast for $(VERSION)"
