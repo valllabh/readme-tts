@@ -64,7 +64,8 @@ install: bundle
 	rm -rf $(INSTALL_DIR)/$(APP_NAME).app
 	cp -R $(BUNDLE) $(INSTALL_DIR)/
 	/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f $(INSTALL_DIR)/$(APP_NAME).app
-	@echo "Installed to $(INSTALL_DIR)/$(APP_NAME).app"
+	ln -sf $(INSTALL_DIR)/$(APP_NAME).app/Contents/MacOS/$(APP_NAME) /opt/homebrew/bin/readme
+	@echo "Installed to $(INSTALL_DIR)/$(APP_NAME).app, CLI at /opt/homebrew/bin/readme"
 	@echo "Run once, grant Accessibility permission, then the Services menu entry appears after next login or pbs refresh."
 
 test:

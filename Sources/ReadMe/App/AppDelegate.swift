@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unbundled"
         Log.info("launch: v\(version) build \(build), \(Bundle.main.bundlePath), macOS \(ProcessInfo.processInfo.operatingSystemVersionString), trusted=\(SelectionReader.isTrusted)")
+
+        // CLI modes run headless: no permission prompts, no status item.
+        if CLIRunner.handleIfNeeded(speech: speech) {
+            return
+        }
+
         // First launch after an install with a changed signature: clear the
         // stale permission rows so the fresh grant sticks, then prompt.
         SelectionReader.resetStalePermission()
@@ -51,40 +57,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 print("=== GEMMA FILTER (\(String(format: "%.2f", seconds))s) ===")
                 print(gemma)
                 exit(0)
-            }
-            return
-        }
-
-        // Debug path: ReadMe --speak "some text" speaks immediately without
-        // touching the selection.
-        if let index = CommandLine.arguments.firstIndex(of: "--speak"),
-           CommandLine.arguments.count > index + 1 {
-            let text = CommandLine.arguments[(index + 1)...].joined(separator: " ")
-            var spoke = false
-            speech.onStatusChange = { status in
-                if status == .speaking {
-                    spoke = true
-                }
-                if status == .idle && spoke {
-                    NSApp.terminate(nil)
-                }
-            }
-            Task { [speech] in
-                await EngineManager.shared.warmUp(Preferences.engine)
-                if Preferences.aiScriptEnabled {
-                    await ScriptPreparer.shared.warmUp()
-                }
-                speech.read(text)
-            }
-            // Debug: verify the preferences window opens while reading.
-            if CommandLine.arguments.contains("--prefs-test") {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                    PreferencesWindowController.shared.show()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        let window = PreferencesWindowController.shared.window
-                        NSLog("PREFS_TEST visible=\(window?.isVisible ?? false) key=\(window?.isKeyWindow ?? false)")
-                    }
-                }
             }
             return
         }
