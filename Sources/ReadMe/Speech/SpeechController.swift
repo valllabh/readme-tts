@@ -78,21 +78,18 @@ final class SpeechController {
                     self?.playerStateChanged(state)
                 }
 
-                // Normalize symbols into spoken forms, then chunk to stay
-                // under the engine's per call audio limit.
-                let pieces = SentenceChunker.chunks(for: TextNormalizer.normalize(text))
-                Log.info("read: \(pieces.count) chunks")
-                guard !pieces.isEmpty else {
-                    // Selection had no speakable content (symbols only).
-                    self.player = nil
-                    self.status = .idle
-                    NSSound.beep()
-                    self.onNotice?("Nothing readable in the selection")
-                    return
-                }
+                // Large selections normalize and chunk incrementally: a small
+                // first segment (split at a paragraph boundary, which no
+                // normalizer rule crosses) starts speech almost immediately
+                // and later segments are processed while audio plays. The up
+                // front pass cost 600 ms on a 300 KB selection when measured.
+                let segments = TextSegmenter.segments(of: text)
+                Log.info("read: \(segments.count) segments")
+
                 let polish = Preferences.aiScriptEnabled
                 let readStart = Date()
                 var firstAudioLogged = false
+                var globalIndex = 0
 
                 // The LLM polish for chunk N+1 runs after chunk N finishes
                 // generating, while N plays, so it never competes with TTS
@@ -100,62 +97,91 @@ final class SpeechController {
                 // to keep the instant start.
                 var nextPolish: Task<String, Never>?
 
-                for (index, piece) in pieces.enumerated() {
+                for (segmentIndex, segment) in segments.enumerated() {
                     try Task.checkCancellation()
-                    let spokenText: String
-                    if let pending = nextPolish {
-                        spokenText = await pending.value
-                        nextPolish = nil
-                    } else {
-                        spokenText = polish && index > 0
-                            ? await ScriptPreparer.shared.prepare(piece.text)
-                            : piece.text
-                    }
-
-                    DebugTrace.append("TTS chunk \(index + 1)/\(pieces.count), pause \(piece.pauseAfter)s", spokenText)
-
-                    // A fine streaming interval on the first chunk minimizes
-                    // time to first audio; later chunks use a coarse interval
-                    // for throughput since playback is already running.
-                    let stream = model.generateSamplesStream(
-                        text: spokenText,
-                        voice: Preferences.voice.isEmpty ? kind.defaultVoice : Preferences.voice,
-                        refAudio: nil,
-                        refText: nil,
-                        language: nil,
-                        generationParameters: nil,
-                        streamingInterval: index == 0 ? 0.2 : 1.0
-                    )
-                    for try await samples in stream {
-                        try Task.checkCancellation()
-                        if !firstAudioLogged {
-                            firstAudioLogged = true
-                            let ms = Int(Date().timeIntervalSince(readStart) * 1000)
-                            Log.info("read: first audio after \(ms) ms")
-                        }
-                        player.append(samples)
-                    }
-
-                    // Prefetch the polish for the next chunk now that the GPU
-                    // is free; it runs while this chunk's audio plays.
-                    if polish, index + 1 < pieces.count {
-                        let upcoming = pieces[index + 1].text
-                        nextPolish = Task {
-                            await ScriptPreparer.shared.prepare(upcoming)
-                        }
-                    }
-                    // The model never sees line or paragraph breaks, so
-                    // structural pauses are injected as real silence.
-                    if piece.pauseAfter > 0 {
-                        let silence = [Float](
-                            repeating: 0,
-                            count: Int(piece.pauseAfter * Double(model.sampleRate))
+                    var pieces = SentenceChunker.chunks(for: TextNormalizer.normalize(segment))
+                    guard !pieces.isEmpty else { continue }
+                    // The chunker zeroes the trailing pause; a segment
+                    // boundary mid selection is still a paragraph break.
+                    if segmentIndex + 1 < segments.count, let last = pieces.last {
+                        pieces[pieces.count - 1] = SpeechChunk(
+                            text: last.text,
+                            pauseAfter: SentenceChunker.paragraphPause
                         )
-                        player.append(silence)
+                    }
+                    Log.info("read: segment \(segmentIndex + 1)/\(segments.count), \(pieces.count) chunks")
+
+                    for (pieceIndex, piece) in pieces.enumerated() {
+                        try Task.checkCancellation()
+                        let index = globalIndex
+                        globalIndex += 1
+
+                        let spokenText: String
+                        if let pending = nextPolish {
+                            spokenText = await pending.value
+                            nextPolish = nil
+                        } else {
+                            spokenText = polish && index > 0
+                                ? await ScriptPreparer.shared.prepare(piece.text)
+                                : piece.text
+                        }
+
+                        DebugTrace.append("TTS chunk \(index + 1), pause \(piece.pauseAfter)s", spokenText)
+
+                        // A fine streaming interval on the first chunk
+                        // minimizes time to first audio; later chunks use a
+                        // coarse interval for throughput since playback is
+                        // already running.
+                        let stream = model.generateSamplesStream(
+                            text: spokenText,
+                            voice: Preferences.voice.isEmpty ? kind.defaultVoice : Preferences.voice,
+                            refAudio: nil,
+                            refText: nil,
+                            language: nil,
+                            generationParameters: nil,
+                            streamingInterval: index == 0 ? 0.2 : 1.0
+                        )
+                        for try await samples in stream {
+                            try Task.checkCancellation()
+                            if !firstAudioLogged {
+                                firstAudioLogged = true
+                                let ms = Int(Date().timeIntervalSince(readStart) * 1000)
+                                Log.info("read: first audio after \(ms) ms")
+                            }
+                            player.append(samples)
+                        }
+
+                        // Prefetch the polish for the next chunk in this
+                        // segment now that the GPU is free; it runs while
+                        // this chunk's audio plays.
+                        if polish, pieceIndex + 1 < pieces.count {
+                            let upcoming = pieces[pieceIndex + 1].text
+                            nextPolish = Task {
+                                await ScriptPreparer.shared.prepare(upcoming)
+                            }
+                        }
+                        // The model never sees line or paragraph breaks, so
+                        // structural pauses are injected as real silence.
+                        if piece.pauseAfter > 0 {
+                            let silence = [Float](
+                                repeating: 0,
+                                count: Int(piece.pauseAfter * Double(model.sampleRate))
+                            )
+                            player.append(silence)
+                        }
                     }
                 }
+
+                guard globalIndex > 0 else {
+                    // Selection had no speakable content (symbols only).
+                    self.player = nil
+                    self.status = .idle
+                    NSSound.beep()
+                    self.onNotice?("Nothing readable in the selection")
+                    return
+                }
                 player.finishAppending()
-                Log.info("read: generation complete")
+                Log.info("read: generation complete, \(globalIndex) chunks")
             } catch is CancellationError {
                 Log.info("read: cancelled")
             } catch {

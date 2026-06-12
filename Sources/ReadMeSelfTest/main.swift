@@ -180,6 +180,23 @@ do {
     expect(chunks.isEmpty, "pipeline: separator only selection yields nothing")
 }
 
+// MARK: - TextSegmenter
+
+do {
+    let small = "Short text stays whole."
+    expect(TextSegmenter.segments(of: small) == [small], "segmenter: small text single segment")
+
+    let para = "First paragraph with enough words to mean something real here.\n\n"
+    let big = String(repeating: para, count: 200)
+    let segments = TextSegmenter.segments(of: big)
+    expect(segments.count > 1, "segmenter: large text splits")
+    expect(segments.joined() == big, "segmenter: nothing lost")
+    expect(segments[0].count <= TextSegmenter.firstSegmentMax, "segmenter: small first segment")
+    expect(segments[0].hasSuffix("\n\n"), "segmenter: splits at paragraph boundary")
+    expect(segments.dropFirst().dropLast().allSatisfy { $0.count <= TextSegmenter.segmentMax },
+           "segmenter: later segments bounded")
+}
+
 // MARK: - SelectionSignature
 
 do {
@@ -197,3 +214,28 @@ if failures > 0 {
     exit(1)
 }
 print("all tests passed")
+
+// MARK: - Pipeline benchmark (runs when READMEBENCH=1)
+
+if ProcessInfo.processInfo.environment["READMEBENCH"] == "1" {
+    let sample = """
+    Revenue grew 25% to $3,000 in Q2, e.g. the API tier added 1,200 users. \
+    See https://example.com/report for details. The committee presented its \
+    annual findings last week. Next review is at 9:05pm on the 21st.
+
+    | Plan | Users |
+    |---|---|
+    | Free | 8,500 |
+
+    More prose follows with normal sentences. Some of them wrap across
+    lines like a PDF would, and the pipeline needs to heal all of it.
+
+    """
+    for factor in [8, 80, 800] {
+        let text = String(repeating: sample, count: factor)
+        let start = Date()
+        let chunks = SentenceChunker.chunks(for: TextNormalizer.normalize(text))
+        let ms = Date().timeIntervalSince(start) * 1000
+        print(String(format: "bench: %6d KB -> %4d chunks in %8.1f ms", text.count / 1024, chunks.count, ms))
+    }
+}
