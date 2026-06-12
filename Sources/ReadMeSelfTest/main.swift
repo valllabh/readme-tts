@@ -212,6 +212,28 @@ expectEqual(
     "normalizer: invisible placeholders stripped"
 )
 
+// Number dense text (the CVE table failure) gets much shorter chunks so
+// each generation call re-anchors the model before it can drift.
+do {
+    let row = "CVE twenty twenty six, three three eight two seven Critical Remote Code Execution tcpip sys NULL deref CVE twenty twenty six, four zero four one three Important Denial of Service"
+    let dense = TextNormalizer.normalize(Array(repeating: row, count: 4).joined(separator: " "))
+    let denseChunks = SentenceChunker.chunks(for: dense)
+    expect(
+        denseChunks.allSatisfy { $0.text.count <= SentenceChunker.denseChunkMax + 10 },
+        "chunker: dense text capped at short chunks (max \(denseChunks.map(\.text.count).max() ?? 0))"
+    )
+
+    let prose = Array(
+        repeating: "The pipeline takes a code base and emits validated findings with evidence attached.",
+        count: 10
+    ).joined(separator: " ")
+    let proseChunks = SentenceChunker.chunks(for: prose)
+    expect(
+        proseChunks.contains { $0.text.count > SentenceChunker.denseChunkMax },
+        "chunker: normal prose keeps full size chunks"
+    )
+}
+
 // Separator lines and decorative marks produce no chunks.
 do {
     let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"

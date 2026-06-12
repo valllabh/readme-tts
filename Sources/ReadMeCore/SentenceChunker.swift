@@ -21,6 +21,13 @@ public struct SpeechChunk: Equatable {
 public enum SentenceChunker {
     public static let chunkMax = 500
 
+    // Number and acronym dense text (ID tables, spec sheets, CVE lists) sits
+    // far off the conversational distribution Marvis was trained on, and
+    // autoregressive drift compounds within one generation call. Much
+    // shorter chunks re-anchor the model on a fresh call before it can
+    // wander into hallucinated phonemes.
+    public static let denseChunkMax = 160
+
     public static let sentenceGapPause = 0.15
     public static let lineBreakPause = 0.5
     public static let paragraphPause = 0.9
@@ -128,13 +135,14 @@ public enum SentenceChunker {
     }
 
     private static func boundedPieces(for block: String) -> [String] {
+        let max = isDense(block) ? denseChunkMax : chunkMax
         var result: [String] = []
         var current = ""
         for sentence in splitSentences(block) {
-            for piece in splitLongSentence(sentence, max: chunkMax) {
+            for piece in splitLongSentence(sentence, max: max) {
                 if current.isEmpty {
                     current = piece
-                } else if current.count + piece.count + 1 <= chunkMax {
+                } else if current.count + piece.count + 1 <= max {
                     current += " " + piece
                 } else {
                     result.append(current)
@@ -146,6 +154,29 @@ public enum SentenceChunker {
             result.append(current)
         }
         return result
+    }
+
+    // Spelled out number words from the normalizer, plus point and oh.
+    private static let numberWords: Set<String> = [
+        "zero", "one", "two", "three", "four", "five", "six", "seven",
+        "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+        "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+        "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+        "hundred", "thousand", "million", "billion", "point", "oh",
+    ]
+
+    // Dense means over thirty percent of tokens are number words, raw
+    // digits, or short all caps acronyms. Runs on normalized text, where
+    // digits are already spelled out.
+    static func isDense(_ text: String) -> Bool {
+        let tokens = text.split { !$0.isLetter && !$0.isNumber }
+        guard tokens.count >= 8 else { return false }
+        let weird = tokens.filter { token in
+            numberWords.contains(token.lowercased())
+                || token.contains(where: \.isNumber)
+                || (token.count >= 2 && token.count <= 6 && token.allSatisfy(\.isUppercase))
+        }.count
+        return Double(weird) / Double(tokens.count) > 0.3
     }
 
     private static func splitSentences(_ text: String) -> [String] {

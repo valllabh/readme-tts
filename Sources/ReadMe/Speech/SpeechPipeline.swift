@@ -73,9 +73,22 @@ enum SpeechPipeline {
                     generationParameters: nil,
                     streamingInterval: options.fastFirstChunk && index == 0 ? 0.2 : 1.0
                 )
+                // Duration watchdog: speech runs two to three words per
+                // second, so audio far past that is the model rambling in
+                // hallucinated phonemes (its known failure on digit and
+                // symbol heavy input). Truncating the chunk cuts the damage
+                // and the next chunk re-anchors generation from scratch.
+                let words = spokenText.split { $0 == " " }.count
+                let allowedSeconds = 2.5 + Double(words) * 0.55
+                var emittedSamples = 0
                 for try await samples in stream {
                     try Task.checkCancellation()
                     try emit(samples)
+                    emittedSamples += samples.count
+                    if Double(emittedSamples) > allowedSeconds * sampleRate {
+                        Log.error("pipeline: chunk \(index + 1) hit \(Int(Double(emittedSamples) / sampleRate))s of audio for \(words) words (allowed \(Int(allowedSeconds))s), truncating likely hallucination")
+                        break
+                    }
                 }
 
                 // Prefetch the polish for the next chunk in this segment now
