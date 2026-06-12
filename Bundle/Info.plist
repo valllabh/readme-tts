@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>ReadMe</string>
 	<key>CFBundleExecutable</key>
 	<string>ReadMe</string>
 	<key>CFBundleIconFile</key>
@@ -14,20 +16,20 @@
 	<string>6.0</string>
 	<key>CFBundleName</key>
 	<string>ReadMe</string>
-	<key>CFBundleDisplayName</key>
-	<string>ReadMe</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Local MLX text to speech reader</string>
+	<string>Copyright 2026 Vallabh Joshi. MIT License.</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
@@ -48,5 +50,11 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/valllabh/readme/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>MMO4iamq9QZ0/BtDT44eNBWkHFRTPlelAmZ5QwRNkeo=</string>
 </dict>
 </plist>

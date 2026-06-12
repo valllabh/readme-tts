@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = services
         NSUpdateDynamicServices()
 
+        Updater.start()
+
         // Accept speak commands from the CLI so it reuses this warm instance.
         CommandServer.start(speech: speech)
 

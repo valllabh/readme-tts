@@ -7,7 +7,8 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", branch: "main"),
         .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .upToNextMajor(from: "3.31.3")),
-        .package(url: "https://github.com/huggingface/swift-transformers.git", .upToNextMajor(from: "1.1.6"))
+        .package(url: "https://github.com/huggingface/swift-transformers.git", .upToNextMajor(from: "1.1.6")),
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", .upToNextMajor(from: "2.8.0"))
     ],
     targets: [
         .target(
@@ -24,7 +25,8 @@ let package = Package(
                 .product(name: "MLXAudioTTS", package: "mlx-audio-swift"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXHuggingFace", package: "mlx-swift-lm"),
-                .product(name: "Tokenizers", package: "swift-transformers")
+                .product(name: "Tokenizers", package: "swift-transformers"),
+                .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "Sources/ReadMe",
             swiftSettings: [

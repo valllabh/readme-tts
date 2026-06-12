@@ -15,6 +15,12 @@ A macOS menu bar app that reads any selected text aloud using expressive AI text
 - Global hotkeys, all recordable in Preferences: Cmd Option R read selection, Cmd Option P pause and resume, Option Escape read or stop (the macOS Spoken Content shortcut, so the accessibility trigger drives ReadMe)
 - Preferences window (Cmd comma from the menu): voice model and voice, AI Script Polish, shortcut recording, launch at login
 - Services menu entry "Read with ReadMe" on right click (app bundle install)
+- Animated menu bar icon while speaking, so a muted Mac still shows reading in progress
+- Auto updates via Sparkle, fed from GitHub Releases
+
+## Install
+
+Download the latest zip from [Releases](https://github.com/valllabh/readme/releases), unzip, and move ReadMe.app to Applications. The app updates itself from there. To build from source instead, read on.
 
 ## Requirements
 
@@ -43,12 +49,12 @@ First launch asks for Accessibility permission. This is required to read the sel
 1. Select text anywhere.
 2. Press Cmd Option R, or right click the waveform icon in the menu bar.
 3. While reading, right click the icon to pause and resume, or press Cmd Option P.
-4. Left click the icon for the menu: a remote style transport row (back 5 seconds, play or pause, forward 5 seconds), stop, preferences, logs.
+4. Left click the icon for the menu: a remote style transport row (back 5 seconds, play or pause, stop, forward 5 seconds) and preferences. The app window holds Settings, Logs, and About in a sidebar.
 5. Resuming after the selection changed restarts with the new selection automatically.
 
 Option Escape also starts reading, matching the macOS accessibility Speak Selection shortcut. Disable the system one under System Settings, Accessibility, Spoken Content so both do not speak at once.
 
-AI Script Polish can be toggled in the right click menu. The first chunk always speaks immediately without waiting for the LLM.
+AI Script Polish can be toggled in Settings. The first chunk always speaks immediately without waiting for the LLM.
 
 ## CLI
 
@@ -63,6 +69,14 @@ readme -f notes.txt -o out.wav  format inferred from extension
 
 Two output formats: m4a (AAC, small, made for sending around) and wav (lossless).
 
+## Privacy
+
+Everything runs on device. The only network traffic is the one time model download from Hugging Face and the Sparkle update check against this repository. Debug Mode, which logs spoken content for diagnosis, is off by default.
+
 ## Documentation
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design details.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for design details and [docs/RELEASING.md](docs/RELEASING.md) for the release flow.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
