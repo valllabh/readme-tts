@@ -1,12 +1,20 @@
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import ReadMeCore
 
 // Reads the currently selected text in whatever app has focus.
 // Tries the Accessibility API first, then falls back to simulating Cmd+C
-// while preserving the user's pasteboard contents.
+// while preserving the user's pasteboard contents. Browsers invert the
+// order: their AX selected text flattens page structure (headings glue to
+// body, figures leak captions, tables lose rows), while their pasteboard
+// carries an HTML flavor with the structure intact.
 enum SelectionReader {
     static func currentSelection() -> String? {
+        if frontmostIsBrowser, let copied = pasteboardSelection() {
+            Log.info("selection: browser pasteboard path, \(copied.count) chars")
+            return copied
+        }
         if let text = axSelection(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             Log.info("selection: AX path, \(text.count) chars")
             return text
@@ -18,6 +26,18 @@ enum SelectionReader {
             Log.info("selection: both paths empty (AX no selected text, pasteboard unchanged after Cmd C)")
         }
         return fallback
+    }
+
+    private static let browserBundleIDs: Set<String> = [
+        "com.apple.Safari", "com.apple.SafariTechnologyPreview",
+        "com.microsoft.edgemac", "com.google.Chrome", "com.google.Chrome.canary",
+        "org.mozilla.firefox", "com.brave.Browser", "com.vivaldi.Vivaldi",
+        "company.thebrowser.Browser", "com.operasoftware.Opera",
+    ]
+
+    private static var frontmostIsBrowser: Bool {
+        guard let id = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return false }
+        return browserBundleIDs.contains(id)
     }
 
     static var isTrusted: Bool {
@@ -95,9 +115,20 @@ enum SelectionReader {
         }
 
         guard pasteboard.changeCount != oldCount else { return nil }
-        let text = pasteboard.string(forType: .string)
+        let html = pasteboard.string(forType: .html)
+        let plain = pasteboard.string(forType: .string)
         restorePasteboard(pasteboard, snapshot: snapshot)
-        return text
+
+        // HTML flavor first: it preserves headings, paragraphs, and table
+        // rows that the plain flavor flattens, and drops images cleanly.
+        if let html {
+            let text = HTMLTextExtractor.text(fromHTML: html)
+            if !text.isEmpty {
+                Log.info("selection: html flavor, \(html.count) chars html, \(text.count) chars text")
+                return text
+            }
+        }
+        return plain
     }
 
     private static func snapshotPasteboard(_ pasteboard: NSPasteboard) -> [[NSPasteboard.PasteboardType: Data]] {

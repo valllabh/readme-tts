@@ -250,6 +250,39 @@ do {
     )
 }
 
+// HTML pasteboard flavor: structure survives where the plain flavor
+// flattens it. Headings separate from body with a paragraph break, images
+// vanish, table rows become tab rows the normalizer reads as sentences.
+expectEqual(
+    HTMLTextExtractor.text(fromHTML: "<h2>Patch Tuesday cohort</h2><p>Across the network stack we found bugs.</p>"),
+    "Patch Tuesday cohort\n\nAcross the network stack we found bugs.",
+    "html: heading separates from body"
+)
+
+expectEqual(
+    HTMLTextExtractor.text(fromHTML: "<p>Before.</p><figure><img src=\"x.png\" alt=\"diagram\"><figcaption>Figure 1: flow</figcaption></figure><p>After.</p>"),
+    "Before.\n\nFigure 1: flow\n\nAfter.",
+    "html: images dropped, captions kept as own line"
+)
+
+expectEqual(
+    HTMLTextExtractor.text(fromHTML: "<table><tr><td>Component</td><td>Severity</td></tr><tr><td>tcpip</td><td>Critical</td></tr></table>"),
+    "Component\tSeverity\n\ntcpip\tCritical",
+    "html: table cells become tab rows"
+)
+
+expectEqual(
+    HTMLTextExtractor.text(fromHTML: "<script>var x = 1;</script><p>Q&amp;A at 5&nbsp;pm &#8212; bring &lt;ideas&gt;.</p><style>p{}</style>"),
+    "Q&A at 5 pm \u{2014} bring <ideas>.",
+    "html: scripts and styles dropped, entities decoded"
+)
+
+expectEqual(
+    HTMLTextExtractor.text(fromHTML: "<ul>\n  <li>First point</li>\n  <li>Second point</li>\n</ul>"),
+    "First point\n\nSecond point",
+    "html: list items on own lines, source newlines ignored"
+)
+
 // Separator lines and decorative marks produce no chunks.
 do {
     let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"
