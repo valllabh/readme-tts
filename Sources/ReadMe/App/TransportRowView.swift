@@ -14,13 +14,14 @@ final class TransportRowView: NSView {
     private let playPauseButton: NSButton
     private let forwardButton: NSButton
     private let stopButton: NSButton
+    private let timeLabel = NSTextField(labelWithString: "")
 
     init() {
         backButton = Self.button(symbol: "gobackward.5", pointSize: 16)
         playPauseButton = Self.button(symbol: "play.fill", pointSize: 24)
         forwardButton = Self.button(symbol: "goforward.5", pointSize: 16)
         stopButton = Self.button(symbol: "stop.fill", pointSize: 24)
-        super.init(frame: NSRect(x: 0, y: 0, width: 220, height: 44))
+        super.init(frame: NSRect(x: 0, y: 0, width: 220, height: 58))
 
         backButton.target = self
         backButton.action = #selector(backTapped)
@@ -31,16 +32,39 @@ final class TransportRowView: NSView {
         stopButton.target = self
         stopButton.action = #selector(stopTapped)
 
-        let stack = NSStackView(views: [backButton, playPauseButton, stopButton, forwardButton])
-        stack.orientation = .horizontal
-        stack.alignment = .centerY
-        stack.spacing = 22
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        timeLabel.font = .monospacedDigitSystemFont(ofSize: 10, weight: .regular)
+        timeLabel.textColor = .secondaryLabelColor
+        timeLabel.alignment = .center
+
+        let buttons = NSStackView(views: [backButton, playPauseButton, stopButton, forwardButton])
+        buttons.orientation = .horizontal
+        buttons.alignment = .centerY
+        buttons.spacing = 22
+
+        let column = NSStackView(views: [buttons, timeLabel])
+        column.orientation = .vertical
+        column.alignment = .centerX
+        column.spacing = 2
+        column.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(column)
         NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            column.centerXAnchor.constraint(equalTo: centerXAnchor),
+            column.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
+    }
+
+    // Position through generated-so-far; total grows while generation runs.
+    func setTime(played: Double, buffered: Double) {
+        timeLabel.stringValue = "\(Self.clock(played)) / \(Self.clock(buffered))"
+    }
+
+    func clearTime() {
+        timeLabel.stringValue = ""
+    }
+
+    private static func clock(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
     @available(*, unavailable)

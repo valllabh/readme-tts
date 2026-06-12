@@ -11,14 +11,5 @@
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
             <enclosure url="https://github.com/valllabh/readme-tts/releases/download/v0.1.0/ReadMe-0.1.0.zip" length="62182964" type="application/octet-stream" sparkle:edSignature="hU6HPRcqReNJMMWFqnH9u38dlQCS07rnA4c6fsz/egBL9thA/Essjr87htsm9mygQQiByHjZbK8XK+Syd8VABg=="/>
         </item>
-        <item>
-            <title>0.1.0</title>
-            <pubDate>Fri, 12 Jun 2026 10:44:09 +0530</pubDate>
-            <sparkle:version>18</sparkle:version>
-            <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/valllabh/readme-tts/releases/download/v0.1.0/ReadMe-0.1.0.zip" length="62182964" type="application/octet-stream" sparkle:edSignature="7eKQN199VtyOXA36/MPKPSyUv+Ot7eiFtaxNMDSu4hIl4UsYaUgPC5hH8j1+g+4zSAFY/12MZtmId2fz9VaxAQ=="/>
-        </item>
     </channel>
 </rss>

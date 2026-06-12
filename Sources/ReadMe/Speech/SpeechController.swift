@@ -32,6 +32,25 @@ final class SpeechController {
     private var generationTask: Task<Void, Never>?
     private var readSignature: String?
 
+    init() {
+        // Speed changes in Settings apply to the current read immediately.
+        NotificationCenter.default.addObserver(
+            forName: Preferences.rateChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.player?.setRate(Float(Preferences.speechRate))
+            }
+        }
+    }
+
+    // Playback position for the transport row time display.
+    var playbackTime: (played: Double, buffered: Double)? {
+        guard let player else { return nil }
+        return (player.currentTime, player.bufferedTime)
+    }
+
     // MARK: - Commands
 
     func readSelection() {
@@ -59,6 +78,31 @@ final class SpeechController {
         read(text)
     }
 
+    // Reads whatever is on the clipboard, no selection or Accessibility
+    // permission needed. Prefers the HTML flavor so web copies keep their
+    // structure, same as browser selection capture.
+    func readClipboard() {
+        let pasteboard = NSPasteboard.general
+        var text: String?
+        if let html = pasteboard.string(forType: .html) {
+            let extracted = HTMLTextExtractor.text(fromHTML: html)
+            if !extracted.isEmpty {
+                text = extracted
+            }
+        }
+        if text == nil {
+            text = pasteboard.string(forType: .string)
+        }
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            NSSound.beep()
+            onNotice?("Clipboard has no text")
+            return
+        }
+        Log.info("readClipboard: \(text.count) chars")
+        onNotice?("Reading clipboard")
+        read(text)
+    }
+
     func read(_ text: String) {
         stopPlayback()
         readSignature = SelectionSignature.make(text)
@@ -71,7 +115,10 @@ final class SpeechController {
                 let model = try await EngineManager.shared.model(for: kind)
                 try Task.checkCancellation()
 
-                let player = try StreamingPlayer(sampleRate: model.sampleRate)
+                let player = try StreamingPlayer(
+                    sampleRate: model.sampleRate,
+                    rate: Float(Preferences.speechRate)
+                )
                 guard let self else { return }
                 self.player = player
                 player.onStateChange = { [weak self] state in

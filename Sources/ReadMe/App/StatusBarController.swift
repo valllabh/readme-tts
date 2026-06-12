@@ -107,6 +107,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         readItem.keyEquivalentModifierMask = [.command, .option]
         readItem.target = self
 
+        let clipboardItem = menu.addItem(
+            withTitle: "Read Clipboard",
+            action: #selector(readClipboard),
+            keyEquivalent: ""
+        )
+        clipboardItem.target = self
+
         transportRow.onBack = { [weak self] in self?.seekBack() }
         transportRow.onPlayPause = { [weak self] in self?.togglePause() }
         transportRow.onForward = { [weak self] in self?.seekForward() }
@@ -148,6 +155,11 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         speech.readSelection()
     }
 
+    @objc private func readClipboard() {
+        Log.info("menu: read clipboard")
+        speech.readClipboard()
+    }
+
     @objc private func togglePause() {
         Log.info("menu: play pause")
         // Remote semantics: play when idle starts reading the selection.
@@ -166,11 +178,28 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func seekBack() {
         Log.info("menu: back 5")
         speech.seekBack()
+        refreshTimeSoon()
     }
 
     @objc private func seekForward() {
         Log.info("menu: forward 5")
         speech.seekForward()
+        refreshTimeSoon()
+    }
+
+    // Seeks land on the player queue; the label catches up just after.
+    private func refreshTimeSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.updateTimeLabel()
+        }
+    }
+
+    private func updateTimeLabel() {
+        if let time = speech.playbackTime {
+            transportRow.setTime(played: time.played, buffered: time.buffered)
+        } else {
+            transportRow.clearTime()
+        }
     }
 
     // MARK: - State
@@ -186,19 +215,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             stopSpeakingAnimation()
             item.button?.image = StatusGlyph.image(.idle)
             transportRow.setState(playing: false, transportEnabled: false, playEnabled: true, stopEnabled: false)
+            transportRow.clearTime()
             readItem.isEnabled = true
         case .loadingModel:
             stopSpeakingAnimation()
             transportRow.setState(playing: false, transportEnabled: false, playEnabled: false, stopEnabled: true)
+            transportRow.clearTime()
             readItem.isEnabled = true
         case .speaking:
             startSpeakingAnimation()
             transportRow.setState(playing: true, transportEnabled: true, playEnabled: true, stopEnabled: true)
+            updateTimeLabel()
             readItem.isEnabled = true
         case .paused:
             stopSpeakingAnimation()
             item.button?.image = StatusGlyph.image(.paused)
             transportRow.setState(playing: false, transportEnabled: true, playEnabled: true, stopEnabled: true)
+            updateTimeLabel()
             readItem.isEnabled = true
         }
     }
@@ -214,6 +247,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 guard let self, self.animationTimer != nil else { return }
                 self.animationPhase = (self.animationPhase + 1) % StatusGlyph.speakingFrameCount
                 self.item.button?.image = StatusGlyph.image(.speaking(phase: self.animationPhase))
+                self.updateTimeLabel()
             }
         }
         RunLoop.main.add(timer, forMode: .common)

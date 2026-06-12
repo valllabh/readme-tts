@@ -8,9 +8,12 @@ import SwiftUI
 struct PreferencesView: View {
     @State private var engine = Preferences.engine
     @State private var voice = Preferences.voice
+    @State private var rate = Preferences.speechRate
     @State private var aiScript = Preferences.aiScriptEnabled
     @State private var debugMode = Preferences.debugMode
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+
+    private let rates: [Double] = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
 
     var body: some View {
         Form {
@@ -52,6 +55,15 @@ struct PreferencesView: View {
                 }
                 .onChange(of: voice) { _, v in
                     Preferences.voice = v
+                }
+
+                Picker("Speed", selection: $rate) {
+                    ForEach(rates, id: \.self) { r in
+                        Text(String(format: "%g×", r)).tag(r)
+                    }
+                }
+                .onChange(of: rate) { _, r in
+                    Preferences.speechRate = r
                 }
 
                 Toggle("AI Script Polish", isOn: $aiScript)

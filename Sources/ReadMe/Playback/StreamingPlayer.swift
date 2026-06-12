@@ -17,6 +17,7 @@ final class StreamingPlayer {
 
     private let audioEngine = AVAudioEngine()
     private let node = AVAudioPlayerNode()
+    private let timePitch = AVAudioUnitTimePitch()
     private let format: AVAudioFormat
     private let sampleRate: Int
     private let queue = DispatchQueue(label: "app.readme.player")
@@ -32,7 +33,7 @@ final class StreamingPlayer {
     private let sliceLength: Int    // samples per scheduled buffer
     private let maxInFlight = 4
 
-    init(sampleRate: Int) throws {
+    init(sampleRate: Int, rate: Float = 1.0) throws {
         self.sampleRate = sampleRate
         self.sliceLength = max(1, sampleRate / 4)
         guard let format = AVAudioFormat(
@@ -44,9 +45,23 @@ final class StreamingPlayer {
             throw NSError(domain: "ReadMe", code: 1, userInfo: [NSLocalizedDescriptionKey: "Bad audio format"])
         }
         self.format = format
+        // Time pitch unit changes tempo without chipmunking the voice.
+        timePitch.rate = Self.clampedRate(rate)
         audioEngine.attach(node)
-        audioEngine.connect(node, to: audioEngine.mainMixerNode, format: format)
+        audioEngine.attach(timePitch)
+        audioEngine.connect(node, to: timePitch, format: format)
+        audioEngine.connect(timePitch, to: audioEngine.mainMixerNode, format: format)
         try audioEngine.start()
+    }
+
+    func setRate(_ rate: Float) {
+        queue.async {
+            self.timePitch.rate = Self.clampedRate(rate)
+        }
+    }
+
+    private static func clampedRate(_ rate: Float) -> Float {
+        min(max(rate, 0.5), 3.0)
     }
 
     // MARK: - Feeding

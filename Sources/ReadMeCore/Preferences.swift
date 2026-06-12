@@ -80,6 +80,20 @@ public enum Preferences {
     private static let voiceKey = "voice"
 
     public static let shortcutsChanged = Notification.Name("ReadMeShortcutsChanged")
+    public static let rateChanged = Notification.Name("ReadMeRateChanged")
+
+    // Playback speed multiplier, pitch preserved. Applies live to the
+    // current read.
+    public static var speechRate: Double {
+        get {
+            let value = UserDefaults.standard.double(forKey: "speechRate")
+            return value == 0 ? 1.0 : value
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "speechRate")
+            NotificationCenter.default.post(name: rateChanged, object: nil)
+        }
+    }
 
     public static var engine: EngineKind {
         get {
