@@ -4,41 +4,12 @@ import ReadMeCore
 import ServiceManagement
 import SwiftUI
 
-@MainActor
-final class PreferencesWindowController: NSWindowController {
-    static let shared = PreferencesWindowController()
-
-    private init() {
-        let hosting = NSHostingController(rootView: PreferencesView())
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "ReadMe Preferences"
-        window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 480, height: 420))
-        // Accessory apps open windows on the desktop Space by default, which
-        // makes the window invisible when the user is in a fullscreen app or
-        // another Space. Join whatever Space is active instead.
-        window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        super.init(window: window)
-        window.center()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        fatalError("not used")
-    }
-
-    func show() {
-        NSApp.activate(ignoringOtherApps: true)
-        showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
-    }
-}
-
-private struct PreferencesView: View {
+// The Settings panel of the main app window (MainWindow.swift).
+struct PreferencesView: View {
     @State private var engine = Preferences.engine
     @State private var voice = Preferences.voice
     @State private var aiScript = Preferences.aiScriptEnabled
+    @State private var debugMode = Preferences.debugMode
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
@@ -105,9 +76,22 @@ private struct PreferencesView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Debug") {
+                Toggle("Debug Mode", isOn: $debugMode)
+                    .onChange(of: debugMode) { _, enabled in
+                        Preferences.debugMode = enabled
+                        Log.info("prefs: debug mode \(enabled ? "on" : "off")")
+                        if enabled {
+                            DebugTrace.append("polish system prompt", ScriptPreparer.instructions)
+                        }
+                    }
+                Text("Traces every chunk sent to the voice plus AI polish input and output into the log, live in the Logs panel. Spoken text is written to disk while on, so keep it off in normal use.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
     }
 }
 

@@ -1,5 +1,6 @@
-// Generates Assets/ReadMe.icns: a rounded squircle with an indigo to violet
-// gradient and a white waveform glyph. Run via make icon.
+// Generates Assets/ReadMe.icns: an orange rounded squircle with a white
+// speech bubble holding waveform bars. Run via make icon.
+// StatusGlyph.swift draws the matching monochrome menu bar glyph.
 import AppKit
 
 let sizes = [16, 32, 64, 128, 256, 512, 1024]
@@ -8,6 +9,8 @@ let root = URL(fileURLWithPath: fm.currentDirectoryPath)
 let iconset = root.appendingPathComponent("Assets/ReadMe.iconset")
 try? fm.removeItem(at: iconset)
 try fm.createDirectory(at: iconset, withIntermediateDirectories: true)
+
+let orange = NSColor(calibratedRed: 0.976, green: 0.451, blue: 0.086, alpha: 1) // #F97316
 
 func draw(canvas: Int) -> NSImage {
     let s = CGFloat(canvas)
@@ -20,34 +23,36 @@ func draw(canvas: Int) -> NSImage {
     let inset = (s - box) / 2
     let rect = NSRect(x: inset, y: inset, width: box, height: box)
     let radius = box * 0.225
-    let path = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+    orange.setFill()
+    NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
 
-    let gradient = NSGradient(
-        starting: NSColor(calibratedRed: 0.32, green: 0.18, blue: 0.85, alpha: 1),
-        ending: NSColor(calibratedRed: 0.61, green: 0.32, blue: 0.95, alpha: 1)
-    )!
-    gradient.draw(in: path, angle: 90)
-
-    // Soft top light: a gentle white fade over the whole squircle.
-    let sheen = NSGradient(
-        starting: NSColor.white.withAlphaComponent(0),
-        ending: NSColor.white.withAlphaComponent(0.16)
-    )!
-    sheen.draw(in: path, angle: 90)
-
-    // Waveform bars, the reading voice.
-    let barCount = 7
-    let heights: [CGFloat] = [0.22, 0.38, 0.58, 0.74, 0.58, 0.38, 0.22]
-    let barWidth = box * 0.055
-    let gap = box * 0.045
-    let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * gap
-    var x = inset + (box - totalWidth) / 2
+    // White speech bubble with a tail at bottom-left.
+    let g = NSRect(x: inset + box * 0.2, y: inset + box * 0.2, width: box * 0.6, height: box * 0.6)
+    let bubbleH = g.height * 0.82
+    let bubble = NSRect(x: g.minX, y: g.maxY - bubbleH, width: g.width, height: bubbleH)
+    let path = NSBezierPath(roundedRect: bubble, xRadius: bubbleH * 0.32, yRadius: bubbleH * 0.32)
+    let tail = NSBezierPath()
+    tail.move(to: NSPoint(x: g.minX + g.width * 0.18, y: bubble.minY + bubbleH * 0.1))
+    tail.line(to: NSPoint(x: g.minX + g.width * 0.22, y: g.minY))
+    tail.line(to: NSPoint(x: g.minX + g.width * 0.45, y: bubble.minY + bubbleH * 0.05))
+    tail.close()
+    path.append(tail)
     NSColor.white.setFill()
-    for i in 0 ..< barCount {
-        let h = box * heights[i]
-        let bar = NSRect(x: x, y: inset + (box - h) / 2, width: barWidth, height: h)
-        NSBezierPath(roundedRect: bar, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
-        x += barWidth + gap
+    path.fill()
+
+    // Waveform bars inside the bubble, in the background orange.
+    orange.setFill()
+    let heights: [CGFloat] = [0.35, 0.7, 1.0, 0.7, 0.35]
+    let barW = g.width * 0.08
+    let gap = g.width * 0.05
+    let total = CGFloat(heights.count) * barW + CGFloat(heights.count - 1) * gap
+    var x = bubble.midX - total / 2
+    let maxBar = bubbleH * 0.5
+    for f in heights {
+        let h = max(maxBar * f, barW)
+        let bar = NSRect(x: x, y: bubble.midY - h / 2, width: barW, height: h)
+        NSBezierPath(roundedRect: bar, xRadius: barW / 2, yRadius: barW / 2).fill()
+        x += barW + gap
     }
     return image
 }

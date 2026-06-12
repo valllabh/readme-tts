@@ -7,12 +7,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let speech: SpeechController
 
     private var readItem: NSMenuItem!
-    private var stopItem: NSMenuItem!
-    private var debugItem: NSMenuItem!
 
     private let transportRow = TransportRowView()
 
     private var menu: NSMenu!
+
+    private var animationTimer: Timer?
+    private var animationPhase = 0
 
     private lazy var spinner: NSProgressIndicator = {
         let spinner = NSProgressIndicator()
@@ -28,7 +29,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         self.item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
 
-        item.button?.image = Self.icon("waveform.circle")
+        item.button?.image = StatusGlyph.image(.idle)
         menu = buildMenu()
         menu.delegate = self
 
@@ -109,16 +110,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         transportRow.onBack = { [weak self] in self?.seekBack() }
         transportRow.onPlayPause = { [weak self] in self?.togglePause() }
         transportRow.onForward = { [weak self] in self?.seekForward() }
+        transportRow.onStop = { [weak self] in self?.stopReading() }
         let transportItem = NSMenuItem()
         transportItem.view = transportRow
         menu.addItem(transportItem)
-
-        stopItem = menu.addItem(
-            withTitle: "Stop",
-            action: #selector(stopReading),
-            keyEquivalent: ""
-        )
-        stopItem.target = self
 
         menu.addItem(.separator())
 
@@ -128,21 +123,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ","
         )
         prefsItem.target = self
-
-        let logsItem = menu.addItem(
-            withTitle: "Open Logs",
-            action: #selector(openLogs),
-            keyEquivalent: ""
-        )
-        logsItem.target = self
-
-        debugItem = menu.addItem(
-            withTitle: "Debug Mode",
-            action: #selector(toggleDebugMode),
-            keyEquivalent: ""
-        )
-        debugItem.target = self
-        debugItem.state = Preferences.debugMode ? .on : .off
 
         menu.addItem(.separator())
 
@@ -158,24 +138,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     @objc private func openPreferences() {
         Log.info("menu: open preferences")
-        PreferencesWindowController.shared.show()
-    }
-
-    @objc private func openLogs() {
-        Log.info("menu: open logs")
-        NSWorkspace.shared.activateFileViewerSelecting([Log.shared.fileURL])
-    }
-
-    @objc private func toggleDebugMode() {
-        Preferences.debugMode.toggle()
-        debugItem.state = Preferences.debugMode ? .on : .off
-        Log.info("menu: debug mode \(Preferences.debugMode ? "on" : "off")")
-        if Preferences.debugMode {
-            DebugWindowController.shared.show()
-            DebugTrace.append("polish system prompt", ScriptPreparer.instructions)
-        } else {
-            DebugWindowController.shared.window?.orderOut(nil)
-        }
+        MainWindowController.shared.show(.settings)
     }
 
     // MARK: - Actions
@@ -220,25 +183,46 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
         switch status {
         case .idle:
-            item.button?.image = Self.icon("waveform.circle")
-            transportRow.setState(playing: false, transportEnabled: false, playEnabled: true)
-            stopItem.isEnabled = false
+            stopSpeakingAnimation()
+            item.button?.image = StatusGlyph.image(.idle)
+            transportRow.setState(playing: false, transportEnabled: false, playEnabled: true, stopEnabled: false)
             readItem.isEnabled = true
         case .loadingModel:
-            transportRow.setState(playing: false, transportEnabled: false, playEnabled: false)
-            stopItem.isEnabled = true
+            stopSpeakingAnimation()
+            transportRow.setState(playing: false, transportEnabled: false, playEnabled: false, stopEnabled: true)
             readItem.isEnabled = true
         case .speaking:
-            item.button?.image = Self.icon("waveform.circle.fill")
-            transportRow.setState(playing: true, transportEnabled: true, playEnabled: true)
-            stopItem.isEnabled = true
+            startSpeakingAnimation()
+            transportRow.setState(playing: true, transportEnabled: true, playEnabled: true, stopEnabled: true)
             readItem.isEnabled = true
         case .paused:
-            item.button?.image = Self.icon("pause.circle.fill")
-            transportRow.setState(playing: false, transportEnabled: true, playEnabled: true)
-            stopItem.isEnabled = true
+            stopSpeakingAnimation()
+            item.button?.image = StatusGlyph.image(.paused)
+            transportRow.setState(playing: false, transportEnabled: true, playEnabled: true, stopEnabled: true)
             readItem.isEnabled = true
         }
+    }
+
+    // The bubble's bars bounce while speech plays, so a muted Mac still
+    // shows that reading is in progress. The timer joins the common runloop
+    // modes to keep animating while the menu is open.
+    private func startSpeakingAnimation() {
+        item.button?.image = StatusGlyph.image(.speaking(phase: animationPhase))
+        guard animationTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.18, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.animationTimer != nil else { return }
+                self.animationPhase = (self.animationPhase + 1) % StatusGlyph.speakingFrameCount
+                self.item.button?.image = StatusGlyph.image(.speaking(phase: self.animationPhase))
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    private func stopSpeakingAnimation() {
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 
     // A real spinning NSProgressIndicator inside the status button while the
@@ -264,11 +248,5 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         guard spinner.superview != nil else { return }
         spinner.stopAnimation(nil)
         spinner.removeFromSuperview()
-    }
-
-    private static func icon(_ symbolName: String) -> NSImage? {
-        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "ReadMe")
-        image?.isTemplate = true
-        return image
     }
 }

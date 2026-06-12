@@ -10,7 +10,8 @@ Sources/ReadMeCore/    pure logic, fully testable: TextNormalizer, NumberSpeller
                        PolishValidator, Preferences
 Sources/ReadMe/
   App/        entry point, app delegate, status bar controller, transport row
-              view, preferences window, debug trace window, HUD feedback,
+              view, main window (sidebar with Settings, Logs, and About
+              panels), preferences pane, log viewer, about pane, HUD feedback,
               services provider, CLI argument handling
   Selection/  reads the selected text from the frontmost app
   Hotkey/     global hotkeys via the Carbon hotkey API
@@ -18,9 +19,13 @@ Sources/ReadMe/
               ScriptPreparer (polish LLM), SpeechController (live playback
               orchestration), AudioFileRenderer (file output)
   Playback/   streaming audio player with pause and seek
-  Support/    file logger
+  Support/    file logger, one file per day at ~/Library/Logs/ReadMe, files
+              from other days deleted on write; DEBUG entries only in Debug Mode
 Sources/ReadMeSelfTest/  assert based tests for ReadMeCore, run via make test
-scripts/makeicon.swift   regenerates Assets/ReadMe.icns (make icon)
+scripts/makeicon.swift   regenerates Assets/ReadMe.icns (make icon), an orange
+                         squircle with a white speech bubble holding waveform
+                         bars; StatusGlyph.swift draws the matching template
+                         menu bar glyph (idle outline, speaking bars, paused)
 ```
 
 Single responsibility map: SpeechPipeline is the one place the read pipeline
