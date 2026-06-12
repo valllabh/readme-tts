@@ -167,6 +167,18 @@ expectEqual(
     "normalizer: tab separated table rows"
 )
 
+expectEqual(
+    TextNormalizer.normalize("Note: state-of-the-art results; really (very) good — truly."),
+    "Note, state of the art results, really, very, good, truly.",
+    "normalizer: colon semicolon parens hyphen dash read as pauses"
+)
+
+expectEqual(
+    TextNormalizer.normalize("Takes 3-5 days on a 16:9 screen [citation needed]."),
+    "Takes three to five days on a sixteen to nine screen, citation needed.",
+    "normalizer: ranges ratios brackets"
+)
+
 // Separator lines and decorative marks produce no chunks.
 do {
     let text = "first scenario reads fine.  ✔ Goal\n---\nsecond scenario also reads.  ✔\n---"

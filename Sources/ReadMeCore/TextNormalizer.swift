@@ -60,6 +60,11 @@ public enum TextNormalizer {
             return NumberSpeller.time(hour: h, minute: m, suffix: groups[3].isEmpty ? nil : groups[3])
         }
 
+        // Ratios and number ranges, before digits become words: 16:9 reads
+        // sixteen to nine, 3-5 reads three to five.
+        s = replace(s, #"(\d+):(\d+)"#, "$1 to $2")
+        s = replace(s, #"(\d)[ \t]*[-–][ \t]*(\d)"#, "$1 to $2")
+
         // Currency: $5.50, $3,000.
         s = replaceMatches(s, #"\$\s?([\d,]+)(?:\.(\d{1,2}))?"#) { groups in
             let whole = Int(groups[1].replacingOccurrences(of: ",", with: "")) ?? 0
@@ -139,16 +144,30 @@ public enum TextNormalizer {
         // Identifiers: snake_case becomes spaces.
         s = replace(s, #"(\w)_(\w)"#, "$1 $2")
 
+        // Punctuation read the way people speak it: pauses, not symbol
+        // names. Semicolons and colons become commas, parentheticals and
+        // bracketed asides get comma pauses around their content, compound
+        // hyphens read as spaced words.
+        s = replace(s, #";"#, ",")
+        s = replace(s, #"(?m):([ \t]|$)"#, ",$1")
+        s = replace(s, #"[ \t]*\(([^)\n]{1,300})\)"#, ", $1,")
+        s = replace(s, #"[ \t]*\[([^\]\n]{1,300})\]"#, ", $1,")
+        s = replace(s, #"([a-zA-Z])-([a-zA-Z])"#, "$1 $2")
+
         // Dashes used as pauses become commas; ellipses become periods.
         s = replace(s, #"[ \t]+[—–-]{1,3}[ \t]+"#, ", ")
+        s = replace(s, #"\s*[—–]\s*"#, ", ")
         s = replace(s, #"(\.{3,}|…)"#, ".")
 
         // Leftover noise with no spoken value. Newlines survive for the
         // chunker to convert into pauses.
         s = replace(s, #"([!?])[!?]+"#, "$1")
-        s = replace(s, #"[|<>{}\\^~`*#@$%&_=+]"#, " ")
+        s = replace(s, #"[|<>{}\[\]()\\^~`*#@$%&_=+]"#, " ")
         s = replace(s, #"[ \t]{2,}"#, " ")
         s = replace(s, #"[ \t]+([.,!?;:])"#, "$1")
+        s = replace(s, #",[ \t]*,"#, ",")
+        s = replace(s, #"([.!?])[ \t]*,"#, "$1")
+        s = replace(s, #",[ \t]*([.!?])"#, "$1")
         s = replace(s, #"(?m)^[ \t]+|[ \t]+$"#, "")
 
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
