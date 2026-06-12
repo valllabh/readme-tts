@@ -37,7 +37,7 @@ struct AboutView: View {
                 Updater.checkForUpdates()
             }
             .padding(.top, 10)
-            Link("github.com/valllabh/readme", destination: URL(string: "https://github.com/valllabh/readme")!)
+            Link("github.com/valllabh/readme-tts", destination: URL(string: "https://github.com/valllabh/readme-tts")!)
                 .font(.caption)
             Spacer()
             Text("Made by VJ")

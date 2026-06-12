@@ -26,7 +26,7 @@ endif
 BUILD_NUM := $(shell git rev-list --count HEAD 2>/dev/null || echo 1)
 
 DIST_DIR = dist
-REPO_URL = https://github.com/valllabh/readme
+REPO_URL = https://github.com/valllabh/readme-tts
 SPARKLE_VERSION = 2.9.3
 SPARKLE_TOOLS = $(BUILD_DIR)/sparkle-tools/bin
 

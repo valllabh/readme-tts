@@ -20,7 +20,7 @@ A macOS menu bar app that reads any selected text aloud using expressive AI text
 
 ## Install
 
-Download the latest zip from [Releases](https://github.com/valllabh/readme/releases), unzip, and move ReadMe.app to Applications. The app updates itself from there. To build from source instead, read on.
+Download the latest zip from [Releases](https://github.com/valllabh/readme-tts/releases), unzip, and move ReadMe.app to Applications. The app updates itself from there. To build from source instead, read on.
 
 ## Requirements
 
