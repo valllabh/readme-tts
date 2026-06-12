@@ -26,6 +26,29 @@ actor ScriptPreparer {
     nothing else.
     """
 
+    // Experimental: Gemma as the whole filter stage instead of the regex
+    // normalizer. Used by --filter-test for side by side comparison.
+    static let filterInstructions = """
+    You clean raw screen text so a text to speech voice can read it. Remove \
+    everything that should not be spoken: markdown symbols, separator lines, \
+    page numbers, decorations, status icons. Expand numbers, symbols, URLs, \
+    and units into spoken words. Keep every meaningful sentence exactly as \
+    written, in the same language and order. Never summarize, never answer, \
+    never add words. Output only the cleaned text, nothing else.
+    """
+
+    func filterExperiment(_ text: String) async -> (output: String, seconds: Double) {
+        guard let container = try? await loadedContainer() else { return ("MODEL LOAD FAILED", 0) }
+        let session = ChatSession(
+            container,
+            instructions: Self.filterInstructions,
+            generateParameters: GenerateParameters(maxTokens: 700, temperature: 0.0)
+        )
+        let start = Date()
+        let raw = (try? await session.respond(to: text)) ?? "GENERATION FAILED"
+        return (Self.sanitize(raw), Date().timeIntervalSince(start))
+    }
+
     private var container: ModelContainer?
     private var loadTask: Task<ModelContainer, Error>?
 

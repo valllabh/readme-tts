@@ -34,6 +34,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = services
         NSUpdateDynamicServices()
 
+        // Debug path: ReadMe --filter-test "raw text" prints the regex
+        // pipeline result and the Gemma filter result side by side, no audio.
+        if let index = CommandLine.arguments.firstIndex(of: "--filter-test"),
+           CommandLine.arguments.count > index + 1 {
+            let text = CommandLine.arguments[index + 1]
+            Task {
+                let regexStart = Date()
+                let chunks = SentenceChunker.chunks(for: TextNormalizer.normalize(text))
+                let regexSeconds = Date().timeIntervalSince(regexStart)
+                print("=== REGEX PIPELINE (\(String(format: "%.4f", regexSeconds))s) ===")
+                for (i, chunk) in chunks.enumerated() {
+                    print("[chunk \(i + 1), pause \(chunk.pauseAfter)s] \(chunk.text)")
+                }
+                let (gemma, seconds) = await ScriptPreparer.shared.filterExperiment(text)
+                print("=== GEMMA FILTER (\(String(format: "%.2f", seconds))s) ===")
+                print(gemma)
+                exit(0)
+            }
+            return
+        }
+
         // Debug path: ReadMe --speak "some text" speaks immediately without
         // touching the selection.
         if let index = CommandLine.arguments.firstIndex(of: "--speak"),

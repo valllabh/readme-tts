@@ -13,8 +13,15 @@ public enum TextNormalizer {
 
         // Separator lines (markdown horizontal rules, terminal dividers) and
         // decorative marks have no spoken value and confuse the polish model.
+        // The unicode ranges cover dingbats, misc symbols, and arrows
+        // (check marks, ✻ style status icons, bullets).
         s = replace(s, #"(?m)^[ \t]*[-=_*~•·#]{2,}[ \t]*$"#, "")
-        s = replace(s, #"[✔✓✗✘●•▪◦‣⁃→←↑↓]"#, " ")
+        s = replace(s, #"[✔✓✗✘●•▪◦‣⁃\x{2190}-\x{21FF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}]"#, " ")
+
+        // Standalone page numbers must go before number expansion turns them
+        // into spelled out words mid text.
+        s = replace(s, #"(?m)^[ \t]*\d{1,4}[ \t]*$\n?"#, "")
+        s = replace(s, #"(?m)^[ \t]*[Pp]age \d+( of \d+)?[ \t]*$\n?"#, "")
 
         // Markdown structure: fences, headings, bullets, quotes.
         s = replace(s, #"```[a-zA-Z0-9]*\n?"#, "")
