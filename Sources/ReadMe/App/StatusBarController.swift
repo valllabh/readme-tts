@@ -8,6 +8,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private var readItem: NSMenuItem!
     private var exportItem: NSMenuItem!
+    private var sleepMenuItems: [NSMenuItem] = []
 
     private let transportRow = TransportRowView()
 
@@ -130,6 +131,27 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
         exportItem.target = self
 
+        let sleepItem = menu.addItem(withTitle: "Sleep Timer", action: nil, keyEquivalent: "")
+        let sleepMenu = NSMenu()
+        for minutes in [15, 30, 60] {
+            let item = sleepMenu.addItem(
+                withTitle: "Stop after \(minutes) minutes",
+                action: #selector(sleepTimerPicked(_:)),
+                keyEquivalent: ""
+            )
+            item.tag = minutes
+            item.target = self
+        }
+        let offItem = sleepMenu.addItem(
+            withTitle: "Off",
+            action: #selector(sleepTimerPicked(_:)),
+            keyEquivalent: ""
+        )
+        offItem.tag = 0
+        offItem.target = self
+        sleepItem.submenu = sleepMenu
+        sleepMenuItems = sleepMenu.items
+
         menu.addItem(.separator())
 
         let prefsItem = menu.addItem(
@@ -171,6 +193,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func exportLastRead() {
         Log.info("menu: export last read")
         speech.exportLastRead()
+    }
+
+    @objc private func sleepTimerPicked(_ sender: NSMenuItem) {
+        Log.info("menu: sleep timer \(sender.tag)")
+        speech.setSleepTimer(minutes: sender.tag == 0 ? nil : sender.tag)
+        for item in sleepMenuItems {
+            item.state = item == sender && sender.tag != 0 ? .on : .off
+        }
     }
 
     @objc private func togglePause() {

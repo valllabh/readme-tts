@@ -34,6 +34,14 @@ final class SpeechController {
     private var readSignature: String?
     private(set) var lastReadText: String?
 
+    // Sample offsets where each spoken chunk starts, for sentence skip.
+    // Filled on the main actor as generation progresses.
+    private var chunkBoundaries: [Int] = []
+    private var sampleRate = 24000
+
+    private var sleepTimer: Timer?
+    private(set) var sleepMinutesRemaining: Int?
+
     init() {
         // Speed changes in Settings apply to the current read immediately.
         NotificationCenter.default.addObserver(
@@ -143,6 +151,7 @@ final class SpeechController {
     func read(_ text: String) {
         stopPlayback()
         lastReadText = text
+        chunkBoundaries = []
         readSignature = SelectionSignature.make(text)
         let kind = Preferences.engine
         Log.info("read: \(text.count) chars, engine=\(kind.rawValue), voice=\(Preferences.voice), polish=\(Preferences.aiScriptEnabled)")
@@ -166,13 +175,17 @@ final class SpeechController {
                 let readStart = Date()
                 var firstAudioLogged = false
 
+                self.sampleRate = model.sampleRate
                 let chunkCount = try await SpeechPipeline.run(
                     text: text,
                     model: model,
                     options: SpeechPipeline.Options(
                         polishFirstChunk: false,
                         fastFirstChunk: true
-                    )
+                    ),
+                    onChunkStart: { offset in
+                        self.chunkBoundaries.append(offset)
+                    }
                 ) { samples in
                     if !firstAudioLogged {
                         firstAudioLogged = true
@@ -258,6 +271,68 @@ final class SpeechController {
         }
         onNotice?("Forward 5 seconds")
         player?.seek(bySeconds: 5)
+    }
+
+    // Sentence skip rides the chunk boundaries recorded during generation.
+    // Back inside the first second of a sentence goes to the previous one;
+    // deeper in, it restarts the current sentence, media player style.
+    func skipForwardSentence() {
+        guard let player, !chunkBoundaries.isEmpty else {
+            onNotice?("Nothing playing")
+            return
+        }
+        let played = player.currentSample
+        guard let next = chunkBoundaries.first(where: { $0 > played }) else {
+            onNotice?("At the last sentence")
+            return
+        }
+        onNotice?("Next sentence")
+        player.seek(toSample: next)
+    }
+
+    func skipBackSentence() {
+        guard let player, !chunkBoundaries.isEmpty else {
+            onNotice?("Nothing playing")
+            return
+        }
+        let played = player.currentSample
+        let grace = sampleRate
+        let current = chunkBoundaries.last(where: { $0 <= played }) ?? 0
+        let target: Int
+        if played - current < grace {
+            target = chunkBoundaries.last(where: { $0 < current }) ?? 0
+        } else {
+            target = current
+        }
+        onNotice?("Previous sentence")
+        player.seek(toSample: target)
+    }
+
+    // MARK: - Sleep timer
+
+    func setSleepTimer(minutes: Int?) {
+        sleepTimer?.invalidate()
+        sleepTimer = nil
+        sleepMinutesRemaining = minutes
+        guard let minutes else {
+            onNotice?("Sleep timer off")
+            return
+        }
+        onNotice?("Stopping in \(minutes) minutes")
+        Log.info("sleep timer: \(minutes) minutes")
+        let timer = Timer(timeInterval: Double(minutes) * 60, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.sleepMinutesRemaining = nil
+                self.sleepTimer = nil
+                if self.status != .idle {
+                    Log.info("sleep timer: fired, stopping")
+                    self.stop()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        sleepTimer = timer
     }
 
     // Tears down playback without user feedback; read() uses this when

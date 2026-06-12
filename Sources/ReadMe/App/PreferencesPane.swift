@@ -13,7 +13,7 @@ struct PreferencesView: View {
     @State private var debugMode = Preferences.debugMode
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
-    private let rates: [Double] = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0]
+    private let rates: [Double] = [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
 
     var body: some View {
         Form {

@@ -120,6 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 speech.stop()
             }
+        case .nextSentence:
+            speech.skipForwardSentence()
+        case .previousSentence:
+            speech.skipBackSentence()
         }
     }
 }

@@ -136,28 +136,42 @@ final class StreamingPlayer {
 
     func seek(bySeconds delta: Double) {
         queue.async {
-            Log.info("player: seek \(delta)s from \(self.played) of \(self.samples.count)")
-            guard self.state == .playing || self.state == .paused else { return }
             let offset = Int(delta * Double(self.sampleRate))
-            let target = min(max(self.played + offset, 0), self.samples.count)
-            self.epoch += 1
-            self.inFlight = 0
-            let wasPlaying = self.state == .playing
-            self.node.stop()
-            self.played = target
-            self.cursor = target
-            if wasPlaying {
-                self.node.play()
-            }
-            self.pump()
-            // A seek that lands at the end of generated audio schedules
-            // nothing, so no completion callback will ever fire again.
-            self.checkFinished()
+            self.seekLocked(to: self.played + offset)
         }
+    }
+
+    func seek(toSample target: Int) {
+        queue.async {
+            self.seekLocked(to: target)
+        }
+    }
+
+    private func seekLocked(to rawTarget: Int) {
+        Log.info("player: seek to \(rawTarget) from \(played) of \(samples.count)")
+        guard state == .playing || state == .paused else { return }
+        let target = min(max(rawTarget, 0), samples.count)
+        epoch += 1
+        inFlight = 0
+        let wasPlaying = state == .playing
+        node.stop()
+        played = target
+        cursor = target
+        if wasPlaying {
+            node.play()
+        }
+        pump()
+        // A seek that lands at the end of generated audio schedules
+        // nothing, so no completion callback will ever fire again.
+        checkFinished()
     }
 
     var currentTime: Double {
         queue.sync { Double(played) / Double(sampleRate) }
+    }
+
+    var currentSample: Int {
+        queue.sync { played }
     }
 
     var bufferedTime: Double {

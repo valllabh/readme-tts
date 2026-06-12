@@ -21,8 +21,10 @@ enum SpeechPipeline {
         text: String,
         model: SpeechGenerationModel,
         options: Options,
+        onChunkStart: ((_ sampleOffset: Int) -> Void)? = nil,
         emit: ([Float]) throws -> Void
     ) async throws -> Int {
+        var emittedTotal = 0
         let polish = Preferences.aiScriptEnabled
         let voice = Preferences.voice.isEmpty ? Preferences.engine.defaultVoice : Preferences.voice
         let sampleRate = Double(model.sampleRate)
@@ -63,6 +65,7 @@ enum SpeechPipeline {
                 }
 
                 DebugTrace.append("TTS chunk \(index + 1), pause \(piece.pauseAfter)s", spokenText)
+                onChunkStart?(emittedTotal)
 
                 let stream = model.generateSamplesStream(
                     text: spokenText,
@@ -85,6 +88,7 @@ enum SpeechPipeline {
                     try Task.checkCancellation()
                     try emit(samples)
                     emittedSamples += samples.count
+                    emittedTotal += samples.count
                     if Double(emittedSamples) > allowedSeconds * sampleRate {
                         Log.error("pipeline: chunk \(index + 1) hit \(Int(Double(emittedSamples) / sampleRate))s of audio for \(words) words (allowed \(Int(allowedSeconds))s), truncating likely hallucination")
                         break
@@ -103,7 +107,9 @@ enum SpeechPipeline {
                 // The model never sees line or paragraph breaks, so
                 // structural pauses are injected as real silence.
                 if piece.pauseAfter > 0 {
-                    try emit([Float](repeating: 0, count: Int(piece.pauseAfter * sampleRate)))
+                    let silence = Int(piece.pauseAfter * sampleRate)
+                    try emit([Float](repeating: 0, count: silence))
+                    emittedTotal += silence
                 }
             }
         }

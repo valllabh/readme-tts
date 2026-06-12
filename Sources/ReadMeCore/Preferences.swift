@@ -55,12 +55,16 @@ public enum ShortcutAction: String, CaseIterable {
     case read
     case pauseResume
     case readOrStop
+    case nextSentence
+    case previousSentence
 
     public var displayName: String {
         switch self {
         case .read: return "Read Selection"
         case .pauseResume: return "Pause and Resume"
         case .readOrStop: return "Read or Stop (Spoken Content key)"
+        case .nextSentence: return "Next Sentence"
+        case .previousSentence: return "Previous Sentence"
         }
     }
 
@@ -70,6 +74,8 @@ public enum ShortcutAction: String, CaseIterable {
         case .read: return Shortcut(keyCode: 15, modifiers: 256 | 2048)        // Cmd Option R
         case .pauseResume: return Shortcut(keyCode: 35, modifiers: 256 | 2048) // Cmd Option P
         case .readOrStop: return Shortcut(keyCode: 53, modifiers: 2048)        // Option Escape
+        case .nextSentence: return Shortcut(keyCode: 124, modifiers: 4096 | 2048)     // Ctrl Option Right
+        case .previousSentence: return Shortcut(keyCode: 123, modifiers: 4096 | 2048) // Ctrl Option Left
         }
     }
 }
