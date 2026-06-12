@@ -76,7 +76,8 @@ A single state machine: idle, loadingModel, speaking, paused. A read cancels any
 
 - Global hotkey Cmd Option R
 - Option Escape (the macOS Spoken Content shortcut): read when idle, stop when active
-- Left click on the status item (pause and resume while active, right click opens the menu)
-- Menu item Read Selection
+- Right click on the status item (read when idle, pause and resume while active, cancel while loading); left click opens the menu with a remote style transport row
+- Resume checks an AX only head and tail signature of the current selection (SelectionSignature) and restarts when the selection changed while paused
+- Menu item Read Selection and the transport row play button (play when idle reads the selection)
 - Services menu "Read with ReadMe" (declared in Bundle/Info.plist, active when installed as an app bundle)
 - CLI debug flag: `ReadMe --speak "text"`

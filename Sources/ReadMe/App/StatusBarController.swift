@@ -7,12 +7,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let speech: SpeechController
 
     private var readItem: NSMenuItem!
-    private var pauseItem: NSMenuItem!
     private var stopItem: NSMenuItem!
-    private var backItem: NSMenuItem!
-    private var forwardItem: NSMenuItem!
     private var aiScriptItem: NSMenuItem!
     private var debugItem: NSMenuItem!
+
+    private var backButton: NSButton!
+    private var playPauseButton: NSButton!
+    private var forwardButton: NSButton!
 
     private var menu: NSMenu!
 
@@ -34,8 +35,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         menu = buildMenu()
         menu.delegate = self
 
-        // Left click acts immediately: start reading when idle, pause and
-        // resume while active. Right click opens the menu.
+        // Left click opens the menu. Right click acts immediately: start
+        // reading when idle, pause and resume while active.
         if let button = item.button {
             button.action = #selector(statusItemClicked)
             button.target = self
@@ -59,7 +60,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let isRightClick = event?.type == .rightMouseUp
             || event?.modifierFlags.contains(.control) == true
         Log.info("status item click: type=\(String(describing: event?.type.rawValue)) right=\(isRightClick) status=\(speech.status)")
-        if isRightClick {
+        guard isRightClick else {
             showMenu()
             return
         }
@@ -108,13 +109,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         readItem.keyEquivalentModifierMask = [.command, .option]
         readItem.target = self
 
-        pauseItem = menu.addItem(
-            withTitle: "Pause",
-            action: #selector(togglePause),
-            keyEquivalent: "p"
-        )
-        pauseItem.keyEquivalentModifierMask = [.command, .option]
-        pauseItem.target = self
+        menu.addItem(makeTransportRow())
 
         stopItem = menu.addItem(
             withTitle: "Stop",
@@ -122,20 +117,6 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             keyEquivalent: ""
         )
         stopItem.target = self
-
-        backItem = menu.addItem(
-            withTitle: "Back 5 Seconds",
-            action: #selector(seekBack),
-            keyEquivalent: ""
-        )
-        backItem.target = self
-
-        forwardItem = menu.addItem(
-            withTitle: "Forward 5 Seconds",
-            action: #selector(seekForward),
-            keyEquivalent: ""
-        )
-        forwardItem.target = self
 
         menu.addItem(.separator())
 
@@ -224,6 +205,48 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
+    // Remote control style transport: back 5, play or pause in the center,
+    // forward 5, in one row. Lives in a custom view so the menu stays open
+    // while seeking repeatedly.
+    private func makeTransportRow() -> NSMenuItem {
+        backButton = transportButton("gobackward.5", action: #selector(seekBack), pointSize: 16)
+        playPauseButton = transportButton("play.fill", action: #selector(togglePause), pointSize: 24)
+        forwardButton = transportButton("goforward.5", action: #selector(seekForward), pointSize: 16)
+
+        let stack = NSStackView(views: [backButton, playPauseButton, forwardButton])
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 28
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 220, height: 44))
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+
+        let item = NSMenuItem()
+        item.view = container
+        return item
+    }
+
+    private func transportButton(_ symbol: String, action: Selector, pointSize: CGFloat) -> NSButton {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)?
+            .withSymbolConfiguration(config)
+        let button = NSButton(image: image ?? NSImage(), target: self, action: action)
+        button.isBordered = false
+        button.imageScaling = .scaleNone
+        return button
+    }
+
+    private func setPlayPauseSymbol(_ symbol: String) {
+        let config = NSImage.SymbolConfiguration(pointSize: 24, weight: .medium)
+        playPauseButton.image = NSImage(systemSymbolName: symbol, accessibilityDescription: symbol)?
+            .withSymbolConfiguration(config)
+    }
+
     // MARK: - Actions
 
     @objc private func readSelection() {
@@ -232,8 +255,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     @objc private func togglePause() {
-        Log.info("menu: pause resume")
-        speech.togglePause()
+        Log.info("menu: play pause")
+        // Remote semantics: play when idle starts reading the selection.
+        if speech.status == .idle {
+            speech.readSelection()
+        } else {
+            speech.togglePause()
+        }
     }
 
     @objc private func stopReading() {
@@ -262,33 +290,34 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         switch status {
         case .idle:
             item.button?.image = Self.icon("waveform.circle")
-            pauseItem.title = "Pause"
-            pauseItem.isEnabled = false
+            setPlayPauseSymbol("play.fill")
+            playPauseButton.isEnabled = true
             stopItem.isEnabled = false
-            backItem.isEnabled = false
-            forwardItem.isEnabled = false
+            backButton.isEnabled = false
+            forwardButton.isEnabled = false
             readItem.isEnabled = true
         case .loadingModel:
-            pauseItem.isEnabled = false
+            setPlayPauseSymbol("play.fill")
+            playPauseButton.isEnabled = false
             stopItem.isEnabled = true
-            backItem.isEnabled = false
-            forwardItem.isEnabled = false
+            backButton.isEnabled = false
+            forwardButton.isEnabled = false
             readItem.isEnabled = true
         case .speaking:
             item.button?.image = Self.icon("waveform.circle.fill")
-            pauseItem.title = "Pause"
-            pauseItem.isEnabled = true
+            setPlayPauseSymbol("pause.fill")
+            playPauseButton.isEnabled = true
             stopItem.isEnabled = true
-            backItem.isEnabled = true
-            forwardItem.isEnabled = true
+            backButton.isEnabled = true
+            forwardButton.isEnabled = true
             readItem.isEnabled = true
         case .paused:
             item.button?.image = Self.icon("pause.circle.fill")
-            pauseItem.title = "Resume"
-            pauseItem.isEnabled = true
+            setPlayPauseSymbol("play.fill")
+            playPauseButton.isEnabled = true
             stopItem.isEnabled = true
-            backItem.isEnabled = true
-            forwardItem.isEnabled = true
+            backButton.isEnabled = true
+            forwardButton.isEnabled = true
             readItem.isEnabled = true
         }
     }

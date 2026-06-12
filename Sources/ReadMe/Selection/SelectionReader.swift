@@ -49,6 +49,12 @@ enum SelectionReader {
         }
     }
 
+    // Fast AX only read for the resume check: no pasteboard fallback, no
+    // synthesized keystrokes, returns nil when the app exposes nothing.
+    static func quickSelection() -> String? {
+        axSelection()
+    }
+
     // MARK: - Accessibility path
 
     private static func axSelection() -> String? {

@@ -41,9 +41,10 @@ First launch asks for Accessibility permission. This is required to read the sel
 ## Usage
 
 1. Select text anywhere.
-2. Press Cmd Option R, or left click the waveform icon in the menu bar.
-3. While reading, left click the icon to pause and resume, or press Cmd Option P.
-4. Right click the icon for the full menu: stop, seek 5 seconds back or forward, engine switch.
+2. Press Cmd Option R, or right click the waveform icon in the menu bar.
+3. While reading, right click the icon to pause and resume, or press Cmd Option P.
+4. Left click the icon for the menu: a remote style transport row (back 5 seconds, play or pause, forward 5 seconds), stop, preferences, logs.
+5. Resuming after the selection changed restarts with the new selection automatically.
 
 Option Escape also starts reading, matching the macOS accessibility Speak Selection shortcut. Disable the system one under System Settings, Accessibility, Spoken Content so both do not speak at once.
 

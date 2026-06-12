@@ -180,6 +180,18 @@ do {
     expect(chunks.isEmpty, "pipeline: separator only selection yields nothing")
 }
 
+// MARK: - SelectionSignature
+
+do {
+    let a = "The quick brown fox jumps over the lazy dog near the river bank today."
+    expect(SelectionSignature.make(a) == SelectionSignature.make(a), "signature: stable")
+    expect(SelectionSignature.make(a) != SelectionSignature.make(a + " More."), "signature: tail change detected")
+    expect(SelectionSignature.make(a) != SelectionSignature.make("New start. " + a), "signature: head change detected")
+    let mid = a.replacingOccurrences(of: "jumps", with: "leaps")
+    expect(SelectionSignature.make(a) != SelectionSignature.make(mid) || a.count != mid.count,
+           "signature: same length middle edit covered by head tail or length")
+}
+
 if failures > 0 {
     print("\(failures) failure(s)")
     exit(1)

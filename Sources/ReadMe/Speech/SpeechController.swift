@@ -30,6 +30,7 @@ final class SpeechController {
 
     private var player: StreamingPlayer?
     private var generationTask: Task<Void, Never>?
+    private var readSignature: String?
 
     // MARK: - Commands
 
@@ -60,6 +61,7 @@ final class SpeechController {
 
     func read(_ text: String) {
         stopPlayback()
+        readSignature = SelectionSignature.make(text)
         let kind = Preferences.engine
         Log.info("read: \(text.count) chars, engine=\(kind.rawValue), voice=\(Preferences.voice), polish=\(Preferences.aiScriptEnabled)")
         status = .loadingModel
@@ -176,8 +178,32 @@ final class SpeechController {
             onNotice?("Nothing playing")
             return
         }
-        onNotice?(status == .paused ? "Resumed" : "Paused")
+        if status == .paused {
+            // If the selection changed while paused, resuming the old audio
+            // would read stale text. Restart with the new selection instead.
+            if let changed = changedSelection() {
+                Log.info("resume: selection changed, restarting")
+                onNotice?("New selection, reading")
+                read(changed)
+                return
+            }
+            onNotice?("Resumed")
+        } else {
+            onNotice?("Paused")
+        }
         player?.togglePause()
+    }
+
+    // AX only check, costs about a millisecond. Returns the new selection
+    // when its head and tail signature differs from what is being read; nil
+    // when unchanged, empty, or unreadable (then resume is correct).
+    private func changedSelection() -> String? {
+        guard SelectionReader.isTrusted,
+              let raw = SelectionReader.quickSelection()
+        else { return nil }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        return SelectionSignature.make(text) != readSignature ? text : nil
     }
 
     func seekBack() {
