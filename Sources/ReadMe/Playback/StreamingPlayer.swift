@@ -28,6 +28,7 @@ final class StreamingPlayer {
     private var inFlight = 0        // scheduled buffers not yet played
     private var epoch = 0           // invalidates stale completion callbacks
     private var generationDone = false
+    private var terminated = false   // explicit stop; append must not revive it
     private var state: State = .stopped
 
     private let sliceLength: Int    // samples per scheduled buffer
@@ -69,6 +70,9 @@ final class StreamingPlayer {
     func append(_ newSamples: [Float]) {
         guard !newSamples.isEmpty else { return }
         queue.async {
+            // A cancelled read's generation can still emit briefly. Once
+            // stopped, stay stopped instead of resurrecting playback.
+            guard !self.terminated else { return }
             self.samples.append(contentsOf: newSamples)
             if self.state == .stopped {
                 self.state = .playing
@@ -125,6 +129,7 @@ final class StreamingPlayer {
 
     func stop() {
         queue.async {
+            self.terminated = true
             self.epoch += 1
             self.inFlight = 0
             self.node.stop()

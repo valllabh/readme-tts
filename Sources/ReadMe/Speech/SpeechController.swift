@@ -149,7 +149,19 @@ final class SpeechController {
     }
 
     func read(_ text: String) {
-        stopPlayback()
+        // Cancel any in-flight read, but keep a handle to it. Cancellation is
+        // cooperative, so the old task is still generating on the shared,
+        // non-reentrant TTS model for a moment. Starting the new generation
+        // before it unwinds would run two autoregressive streams on one model
+        // at once and the audio comes out garbled. The new task awaits the old
+        // one below before touching the model.
+        let previous = generationTask
+        previous?.cancel()
+        if let player {
+            player.onStateChange = nil
+            player.stop()
+        }
+        player = nil
         lastReadText = text
         chunkBoundaries = []
         readSignature = SelectionSignature.make(text)
@@ -158,7 +170,11 @@ final class SpeechController {
         status = .loadingModel
 
         generationTask = Task { [weak self] in
+            // Wait for the previous read to finish unwinding so generation is
+            // serialized: one stream on the model at a time.
+            await previous?.value
             do {
+                try Task.checkCancellation()
                 let model = try await EngineManager.shared.model(for: kind)
                 try Task.checkCancellation()
 
